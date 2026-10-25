@@ -1,6 +1,6 @@
 export async function loadAssets(progress=()=>{}){
-  if(window.dyoOriginalAssets)return window.dyoOriginalAssets;
-  window.dyoOriginalAssets=(async()=>{
+  if(window.goatesqueAssets)return window.goatesqueAssets;
+  window.goatesqueAssets=(async()=>{
     const [manifest,renderMap,uiLayout,controls,audioManifest]=await Promise.all([
       fetch('/game/assets/manifest.json').then(r=>{if(!r.ok)throw Error('Could not load the original artwork. Reload to retry.');return r.json();}),
       fetch('/game/assets/render-map.json').then(r=>r.json()),
@@ -25,5 +25,5 @@ export async function loadAssets(progress=()=>{}){
       },
     };
   })();
-  try{return await window.dyoOriginalAssets;}catch(error){delete window.dyoOriginalAssets;throw error;}
+  try{return await window.goatesqueAssets;}catch(error){delete window.goatesqueAssets;throw error;}
 }

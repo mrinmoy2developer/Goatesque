@@ -7,14 +7,14 @@ import {HeadTransition,nodeUnlocked} from './presentation.mjs';
 import {Gamepads} from './gamepads.mjs';
 import {OriginalAudio} from './audio.mjs';
 const $=id=>document.getElementById(id);
-const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}};
+const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)??localStorage.getItem(key.replace('goatesque-','dyo-')))??fallback;}catch{return fallback;}};
 const save=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));}catch{}};
 export async function boot(){
- const generation=(window.dyoBoot||0)+1;window.dyoBoot=generation;window.dyo?.destroy?.();
- const [levels,assets]=await Promise.all([fetch('/game/levels.json').then(r=>r.json()),loadAssets((loaded,total)=>{$('loading').textContent=`Loading DYO… ${Math.round(loaded/total*100)}%`;})]);
- if(window.dyoBoot!==generation)return;await document.fonts.load('32px DyoGaramond');
+ const generation=(window.goatesqueBoot||0)+1;window.goatesqueBoot=generation;window.goatesque?.destroy?.();
+ const [levels,assets]=await Promise.all([fetch('/game/levels.json').then(r=>r.json()),loadAssets((loaded,total)=>{$('loading').textContent=`Loading Goatesque… ${Math.round(loaded/total*100)}%`;})]);
+ if(window.goatesqueBoot!==generation)return;await document.fonts.load('32px GoatesqueGaramond');
  const engine=new Engine(levels),renderer=new Renderer($('world'),assets),pads=new Gamepads(assets.controls),audio=new OriginalAudio(assets.audioManifest);
- const ui={screen:'title',selected:0,inputSelection:0,inputMode:read('dyo-input-mode',3),completed:read('dyo-completed',[]),overlay:null,gamepadConnected:false,guest:false,sound:read('dyo-sound',true),music:read('dyo-music',true)};
+ const ui={screen:'title',selected:0,inputSelection:0,inputMode:read('goatesque-input-mode',3),completed:read('goatesque-completed',[]),overlay:null,gamepadConnected:false,guest:false,sound:read('goatesque-sound',true),music:read('goatesque-music',true)};
  audio.sounds=ui.sound;audio.music=ui.music;
  const native=new NativeInterface($('world'),assets,$('native-buttons'),action),inputs=[emptyInput(),emptyInput()],keys=new Set(),cleanup=[];
  let mode='local',room=null,connection=null,remote=emptyInput(),hostInput=emptyInput(),transition=null,transitionId=0,keyboardSwap=false,touchPlayer=0,last=0,accumulator=0,frame=0,raf=0,toastTimer,remotePaused=false,remoteMenu=0,remoteConfirm=0,remoteSession=null,history=[],inputReturn='play',seenRewind=false;
@@ -24,7 +24,7 @@ export async function boot(){
  function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3000);}
  function clearHeld(){keys.clear();for(const i of inputs){i.left=false;i.right=false;i.rewind=false;i.switchHeld=false;}for(const i of touch)Object.assign(i,{left:false,right:false,rewind:false,switchHeld:false});}
  function selectedForLevel(index){return assets.uiLayout.map.nodes.findIndex(n=>n.alsoIncludesEngineIndices.includes(index));}
- function markCompleted(index){if(!ui.completed.includes(index)){ui.completed.push(index);save('dyo-completed',ui.completed);}}
+ function markCompleted(index){if(!ui.completed.includes(index)){ui.completed.push(index);save('goatesque-completed',ui.completed);}}
  function loadLevel(index){engine.load(index);for(let i=0;i<2;i++){const input=mode==='host'&&i===1?remote:inputs[i];Object.assign(engine.players[i],{lastJump:input.jump||0,lastLock:input.lock||0,lastRestart:input.restart||0,lastGate:input.gate||0,lastSwitch:input.switch||0});}history=[];seenRewind=false;clearHeld();}
  function switchScene(target){
   if(target.screen==='play')loadLevel(target.index);
@@ -34,7 +34,7 @@ export async function boot(){
  }
  function fadeTo(target,{completion=false,automatic=false}={}){if(!authority()||transition)return;transition=new HeadTransition(target,{completion,automatic,id:++transitionId});ui.overlay=null;clearHeld();audio.effect('sdHeadClose');}
  function openScene(target){switchScene(target);transition=HeadTransition.opening(++transitionId);audio.effect('sdHeadOpen');}
- function start(){audio.unlock();audio.effect('sdTitlePress');fadeTo({screen:read('dyo-input-mode',null)!==null||ui.completed.length?'map':'input',selected:Math.max(0,Math.min(29,selectedForLevel(engine.index)))});}
+ function start(){audio.unlock();audio.effect('sdTitlePress');fadeTo({screen:read('goatesque-input-mode',null)!==null||ui.completed.length?'map':'input',selected:Math.max(0,Math.min(29,selectedForLevel(engine.index)))});}
  function startLevel(nodeIndex){const node=assets.uiLayout.map.nodes[nodeIndex];if(!authority()||!node||!nodeUnlocked(nodeIndex,new Set(ui.completed.map(i=>i+3))))return;ui.selected=nodeIndex;fadeTo({screen:'play',index:node.engineIndex});}
  function confirmCompletion(restart=false){if(!transition?.waiting)return;if(mode==='guest'){if(restart)inputs[1].restart++;else inputs[1].confirm++;return;}if(transition.confirm(restart?{screen:'play',index:engine.index}:undefined))audio.effect('sdMenuPress');}
  function requestMap(){if(mode==='guest'){inputs[1].menu++;return;}fadeTo({screen:'map',selected:Math.max(0,selectedForLevel(engine.index))});}
@@ -45,13 +45,13 @@ export async function boot(){
   if(transition)return;
   if(name==='start'){start();return;}
   if(name==='input-choice'){
-   ui.inputMode=Number(value);ui.inputSelection=Number(value);const existing=read('dyo-input-mode',null)!==null;save('dyo-input-mode',ui.inputMode);
+   ui.inputMode=Number(value);ui.inputSelection=Number(value);const existing=read('goatesque-input-mode',null)!==null;save('goatesque-input-mode',ui.inputMode);
    audio.effect('sdMenuPress');fadeTo(existing||inputReturn==='map'?{screen:'map',selected:ui.selected}:{screen:'play',index:0});return;
   }
   if(name==='level'){startLevel(Number(value));return;}
   if(name==='input'){inputReturn='map';ui.inputSelection=ui.inputMode;fadeTo({screen:'input'});return;}
-  if(name==='sound'){audio.sounds=!audio.sounds;ui.sound=audio.sounds;save('dyo-sound',ui.sound);return;}
-  if(name==='music'){audio.toggleMusic();ui.music=audio.music;save('dyo-music',ui.music);return;}
+  if(name==='sound'){audio.sounds=!audio.sounds;ui.sound=audio.sounds;save('goatesque-sound',ui.sound);return;}
+  if(name==='music'){audio.toggleMusic();ui.music=audio.music;save('goatesque-music',ui.music);return;}
   if(name==='credits'){ui.selected='credits';ui.overlay='credits';return;}
   if(name==='fullscreen'){if(document.fullscreenElement)document.exitFullscreen?.();else $('game-shell').requestFullscreen?.();}
  }
@@ -168,5 +168,5 @@ export async function boot(){
  }
  const invite=new URLSearchParams(location.hash.slice(1));if(invite.has('room')){$('room-code').value=invite.get('room');$('online-dialog').hidden=false;}
  $('loading').hidden=true;raf=requestAnimationFrame(animate);
- window.dyo={engine,renderer,inputs,ui,native,assets,audio,get transition(){return transition;},get mode(){return mode;},get room(){return room;},loadLevel,playLocal,startLevel,action,enterRoom,confirmCompletion,requestMap,destroy(){cancelAnimationFrame(raf);connection?.stop();audio.destroy();cleanup.forEach(fn=>fn());clearTimeout(toastTimer);}};
+ window.goatesque={engine,renderer,inputs,ui,native,assets,audio,get transition(){return transition;},get mode(){return mode;},get room(){return room;},loadLevel,playLocal,startLevel,action,enterRoom,confirmCompletion,requestMap,destroy(){cancelAnimationFrame(raf);connection?.stop();audio.destroy();cleanup.forEach(fn=>fn());clearTimeout(toastTimer);}};
 }

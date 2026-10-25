@@ -1,4 +1,4 @@
-# Analysis and reconstruction
+# Goatesque analysis and reconstruction
 
 Target: the official free Windows DYO release from [Team DYO on itch.io](https://josia-roncancio.itch.io/dyo), upload `1536745`. The ZIP is 278,668,574 bytes with SHA-256 `5c85ac4c17c95db84239f26e12675448c7673336b26acfacee0db66772d0b2bc`.
 

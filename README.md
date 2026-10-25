@@ -1,8 +1,23 @@
-# DYO browser reconstruction
+# Goatesque
 
-A playable browser recreation of DYO's cooperative split-screen puzzles, using original artwork, menu and map assets, 31 gameplay rooms behind the original 30 level-map nodes, and room-code online co-op.
+Goatesque is a playable browser recreation of DYO's cooperative split-screen puzzles, using original artwork, menu and map assets, 31 gameplay rooms behind the original 30 level-map nodes, and room-code online co-op.
 
-## Run
+## Ludia hosting
+
+The production name is **Goatesque**, with planned URL `https://goatesque.mrinmoy.org`. The original source artwork and Team DYO credit remain attributed to their creators.
+
+Build a dependency-free deployment on your Mac:
+
+```sh
+node scripts/build-standalone.mjs
+python3 outputs/goatesque/relay.py --public outputs/goatesque/public --port 8792
+```
+
+The standalone build uses the same page, styles, engine and assets as the framework build. Ludia runs Python's standard library, with nginx serving static files and proxying `/api/rooms` and `/api/health`. Rooms live in bounded memory and disappear on service restart. No database or Node runtime is needed there. The user service has `MemoryHigh=64M`, `MemoryMax=96M`, no swap allocation, and `CPUQuota=25%` (one quarter of a CPU).
+
+See [deploy/ludia/README.md](deploy/ludia/README.md) for DNS, activation and service commands. Build output is under ignored `outputs/goatesque/`; original research and recovered executable/source are excluded.
+
+## Framework development and existing Sites copy
 
 ```sh
 npm ci

@@ -4,12 +4,12 @@ export class NativeInterface {
  constructor(canvas,assets,buttons,action){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.assets=assets;this.layout=assets.uiLayout;this.buttons=buttons;this.action=action;this.scroll=40;this.selector={x:0,y:0};this.lastScreen=null;this.buttonKey='';this.time=0;}
  resize(){const dpr=Math.min(devicePixelRatio||1,2),w=Math.round(this.canvas.clientWidth*dpr),h=Math.round(this.canvas.clientHeight*dpr);if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}this.ctx.setTransform(w/1920,0,0,h/1080,0,0);}
  sprite(name,frame,x,y,sx=1,sy=sx,alpha=1){return this.assets.draw(this.ctx,name,frame,x,y,sx,sy,0,alpha);}
- text(value,x,y,size=32,alpha=1){const c=this.ctx;c.save();c.globalAlpha=alpha;c.fillStyle='#fff';c.textAlign='center';c.textBaseline='middle';c.font=`${size===32?'bold ':''}${size}px DyoGaramond,serif`;const lines=value.split('\n');lines.forEach((line,i)=>c.fillText(line.trim(),x,y+(i-(lines.length-1)/2)*size*1.25));c.restore();}
+ text(value,x,y,size=32,alpha=1){const c=this.ctx;c.save();c.globalAlpha=alpha;c.fillStyle='#fff';c.textAlign='center';c.textBaseline='middle';c.font=`${size===32?'bold ':''}${size}px GoatesqueGaramond,serif`;const lines=value.split('\n');lines.forEach((line,i)=>c.fillText(line.trim(),x,y+(i-(lines.length-1)/2)*size*1.25));c.restore();}
  render(state,transition,dt=16){
   this.resize();const c=this.ctx;this.time+=dt;const screen=state.screen;
   if(this.lastScreen!==screen){this.scroll=40;this.selector={x:0,y:0};this.lastScreen=screen;this.buttonKey='';}
   if(screen==='title'){
-   c.fillStyle='#c0c0c0';c.fillRect(0,0,1920,1080);this.heads(1,false);this.sprite('sprHUDControls',state.gamepadConnected?0:29,990,900,1.5,1.5,Math.max(0,Math.sin(this.time*.002)));
+   c.fillStyle='#c0c0c0';c.fillRect(0,0,1920,1080);this.heads(1,false);this.text('Goatesque',960,120,85.33);this.sprite('sprHUDControls',state.gamepadConnected?0:29,990,900,1.5,1.5,Math.max(0,Math.sin(this.time*.002)));
   }else if(screen==='input'){
    c.drawImage(this.assets.inputBackground,0,0,1920,1080);
    for(const option of this.layout.input.options)this.sprite(option.sprite,option.frame,option.x,option.y);

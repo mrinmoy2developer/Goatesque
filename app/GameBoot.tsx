@@ -6,7 +6,7 @@ export default function GameBoot() {
     script.type="module";
     script.src="/game/start.mjs?session="+crypto.randomUUID();
     document.body.appendChild(script);
-    return () => {script.remove();(window as Window & {dyo?:{destroy:()=>void}}).dyo?.destroy();};
+    return () => {script.remove();(window as Window & {goatesque?:{destroy:()=>void}}).goatesque?.destroy();};
   }, []);
   return null;
 }

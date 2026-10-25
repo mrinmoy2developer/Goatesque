@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DYO · Two worlds. One way out.",
-  description: "A browser reconstruction of DYO. Explore a shifting labyrinth together in local or online co-op.",
+  title: "Goatesque · Two worlds. One way out.",
+  description: "Explore a shifting labyrinth together in Goatesque, with local or online co-op.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
