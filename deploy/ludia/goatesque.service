@@ -1,16 +1,14 @@
 [Unit]
-Description=Goatesque online co-op relay
+Description=Goatesque authoritative online co-op simulation
 After=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=%h/goatesque/current
-Environment=PYTHONUNBUFFERED=1
-Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/usr/bin/python3 %h/goatesque/current/relay.py --host 127.0.0.1 --port 8792 --public %h/goatesque/current/public --max-rooms 16
+ExecStart=/usr/bin/node --max-old-space-size=40 %h/goatesque/current/server.mjs --host 127.0.0.1 --port 8792 --public %h/goatesque/current/public
 Restart=on-failure
 RestartSec=3
-MemoryHigh=64M
+MemoryHigh=80M
 MemoryMax=96M
 MemorySwapMax=0
 CPUQuota=25%

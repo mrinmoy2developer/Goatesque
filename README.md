@@ -4,16 +4,16 @@ Goatesque is a playable browser recreation of DYO's cooperative split-screen puz
 
 ## Ludia hosting
 
-The production name is **Goatesque**, with planned URL `https://goatesque.mrinmoy.org`. The original source artwork and Team DYO credit remain attributed to their creators.
+**Goatesque** is live at `https://goatesque.mrinmoy.org`. The original source artwork and Team DYO credit remain attributed to their creators.
 
 Build a dependency-free deployment on your Mac:
 
 ```sh
 node scripts/build-standalone.mjs
-python3 outputs/goatesque/relay.py --public outputs/goatesque/public --port 8792
+node --max-old-space-size=40 outputs/goatesque/server.mjs --public outputs/goatesque/public --port 8792
 ```
 
-The standalone build uses the same page, styles, engine and assets as the framework build. Ludia runs Python's standard library, with nginx serving static files and proxying `/api/rooms` and `/api/health`. Rooms live in bounded memory and disappear on service restart. No database or Node runtime is needed there. The user service has `MemoryHigh=64M`, `MemoryMax=96M`, no swap allocation, and `CPUQuota=25%` (one quarter of a CPU).
+The standalone build uses the same page, styles, engine and assets as the framework build. Ludia runs the dependency-free Node 16+ authoritative simulation, with nginx serving static files and proxying `/api/rooms` and `/api/health`. Up to four rooms live in memory and disappear on service restart. No database is needed there. The user service has `MemoryHigh=80M`, `MemoryMax=96M`, no swap allocation, and `CPUQuota=25%` (one quarter of a CPU).
 
 See [deploy/ludia/README.md](deploy/ludia/README.md) for DNS, activation and service commands. Build output is under ignored `outputs/goatesque/`; original research and recovered executable/source are excluded.
 
@@ -24,7 +24,7 @@ npm ci
 npm run dev -- --port 5173
 ```
 
-Local multiplayer works immediately. Online rooms use the Sites-provisioned Cloudflare D1 binding `DB`. For a fresh local database:
+Local multiplayer works immediately. Use the standalone Node server above for current online co-op. The older Sites copy and its D1 relay are retained for reference and do not support protocol 3. Its previous database setup was:
 
 ```sh
 npm run build
@@ -43,11 +43,11 @@ Apply that migration once per local database. Hosted migrations are applied duri
 - Arrows navigate menus; Space/Enter confirms. New saves begin with the original four input choices. Standard browser gamepads support shared controller, two controllers, or controller plus keyboard. Touch controls include a character selector.
 - The Touch toggle enables thumb controls for movement, jump, lock, doorway, held rewind and screen exchange. Online controls always operate your own character; local play has a White/Red selector. Local touch screen exchange operates both switch controls together. The full-screen button is always available. Browsers without element fullscreen can launch the game from a Home Screen shortcut; portrait and landscape layouts respect safe areas.
 - Completion closes the stone heads and waits for Space/Enter/Up, then returns to the map. R restarts while this completion screen is waiting. The first introduction advances automatically to the second.
-- Online: choose Online co-op → Create a room → copy invite. Your friend opens the link and joins. Either movement key set controls your own character. Host remains the simulation authority and chooses levels; menus and transitions synchronize between browsers. Either player can confirm completion or return to the map.
+- Online: choose Online co-op → Create a room → copy invite. Your friend opens the link and joins. Either movement key set controls your own character. The room creator chooses levels; Ludia simulates both players. Menus and transitions synchronize between browsers. Either player can confirm completion or return to the map.
 
-The host is authoritative for both players, shared physics, time, gates and level transitions. Each computer accepts either WASD or arrows for its own character. Guest input frames have sequences and a room epoch; the host consumes each frame once and acknowledges only consumed frames. The guest predicts only its own body against the last authoritative world, then replays every unacknowledged local command. It never predicts the host character or re-simulates shared time/history. Old movement catch-up counters and the24-frame history truncation were removed.
+Ludia owns both players, shared physics, time, gates and world events at 60 Hz. Both browsers predict only their own character, then restore server snapshots and replay every unacknowledged input command. Player command streams, action counters and acknowledgments remain separate. If an input frame has not arrived, that player's body and camera wait; the server never inserts unacknowledged gravity or friction steps. After a jitter spike, the server drains up to four body commands per player per tick until the queue is small again. Shared animation effects still advance once per server tick; shared-action changes remain ordered. The room creator retains control of menus and level selection.
 
-Synchronization targets20Hz with at most3 HTTP requests in flight per browser. Both relay and client reject older packets/responses, so a delayed held-key packet cannot replace a later release. After a connection stall, abandoned input streams are cancelled and controls safely resynchronize. Keep the host game tab active; if host simulation stalls, the guest waits instead of running an old world forward. This is protocol2: both browsers must refresh and create a new room after upgrading. Visual correction smoothing remains separate from physics. This implementation uses HTTPS; Tailscale is optional and is not configured.
+Synchronization targets 20 Hz with at most three HTTP requests in flight per browser. Old packets and responses are rejected; cancelled streams cannot replay stale movement. World simulation continues if the host's rendering pauses while its connection remains live. Extended connection loss pauses the room; abandoned host rooms expire after two minutes. Protocol 3 requires both browsers to refresh and create a new room after upgrading. HTTPS is used; Tailscale is optional and is not configured. Visual correction smoothing remains separate from physics.
 
 ## Verification
 

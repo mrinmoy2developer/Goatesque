@@ -148,14 +148,14 @@ export class Engine {
   predictPlayer(index,input){
     if(this.won||this.rewinding||input.rewind||this.players[index].gate>=0)return;
     // Predict only this body against the last authoritative world. Carrying,
-    // pushing, camera ownership and shared time remain the host's decisions.
+    // pushing, camera ownership and shared time remain authoritative simulation decisions.
     const world=Object.create(this),p={...this.players[index]};
     world.players=this.players.map((other,i)=>i===index?p:{...other});world.cameras=this.cameras.map(c=>({...c}));world.blocks=this.blocks.map(b=>({...b}));world.events=[];
     world.movePlayer(p,{...input,lock:p.lastLock,gate:p.lastGate},index);
     this.players[index]=p;
     if(!world.cameras[p.owner].locked&&p.gate<0){world.centerCamera(p.owner);this.cameras[p.owner]=world.cameras[p.owner];}
   }
-  step(inputs=[emptyInput(),emptyInput()]) {
+  step(inputs=[emptyInput(),emptyInput()],playerCommands=null) {
     if(inputs.some((input,i)=>(input?.restart||0)>this.players[i].lastRestart)){this.load(this.index);this.players.forEach((p,i)=>Object.assign(p,{lastJump:inputs[i]?.jump||0,lastLock:inputs[i]?.lock||0,lastRestart:inputs[i]?.restart||0,lastGate:inputs[i]?.gate||0,lastSwitch:inputs[i]?.switch||0}));return;}
     if(this.level.rewindEnabled!==false&&inputs.some(input=>input?.rewind)){this.rewindRate+=.01;if(this.history.length>1)this.rewindFrames(Math.floor(this.rewindRate));this.rewinding=true;return;}
     this.rewinding=false;this.rewindRate=Math.max(2,this.rewindRate-.1);
@@ -170,9 +170,11 @@ export class Engine {
       const b=this.blocks[i],steps=Math.ceil(Math.abs(b.vx));
       for(let n=0;n<steps;n++){const dx=b.vx/steps;if(this.collides({x:b.x+dx-b.w/2,y:b.y-b.h/2,w:b.w,h:b.h},0,i)){b.vx=0;break;}b.x+=dx;}
     }
-    for(let i=0;i<2;i++)this.movePlayer(this.players[i],inputs[i]||emptyInput(),i);
+    // A missing network command must not add an unacknowledged physics step.
+    // The server still advances shared world effects on its fixed clock.
+    for(let i=0;i<2;i++)for(const input of playerCommands?.[i]||[inputs[i]||emptyInput()]){if(input.advance===false)continue;this.movePlayer(this.players[i],input,i);const p=this.players[i];if(playerCommands&&!this.cameras[p.owner].locked&&p.gate<0)this.centerCamera(p.owner);}
     for(const group of this.breakGroups){if(this.broken.includes(group[0]))continue;const on=this.players.map(p=>{const y=Math.floor((p.y+47*p.scale+2)/64);return p.ground&&group.some(k=>Math.floor(k/this.level.width)===y&&Math.abs((k%this.level.width)*64+32-p.x)<32+28*p.scale);});const stacked=this.players.some((p,i)=>on[i]&&Math.abs(p.x-this.players[1-i].x)<50&&Math.abs((p.y-47*p.scale)-(this.players[1-i].y+47*this.players[1-i].scale))<4);if(on.every(Boolean)||stacked){this.broken.push(...group);this.breaks.push({tick:this.tick,cells:[...group]});this.events.push({type:"break"});}}
-    for(let i=0;i<2;i++)if(!this.cameras[i].locked&&this.players[i].gate<0)this.centerCamera(i);
+    if(!playerCommands)for(let i=0;i<2;i++){const owner=this.players.findIndex(p=>p.owner===i);if(!this.cameras[i].locked&&this.players[owner].gate<0&&inputs[owner]?.advance!==false)this.centerCamera(i);}
     if(this.sharedCamera)this.updateSharedCamera();
     if(this.ending){this.updateEnding();}
     for(let g=0;g<this.level.gates.length;g++)for(let view=0;view<2;view++){const occupants=this.players.filter(p=>p.gate===g),capacity=this.level.gates[g].capacity,closed=occupants.length>=capacity||capacity===2&&occupants.some(p=>p.view===view);this.gateFrames[g][view]=clamp(this.gateFrames[g][view]+(closed?1:-1),0,4);}
