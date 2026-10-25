@@ -51,7 +51,7 @@ WebSockets are the primary transport: inputs and 30 Hz state updates share one p
 
 A four-frame input buffer (at most 80 ms to prime) absorbs short gaps. The other player's body and camera render from a 100 ms snapshot buffer with at most 60 ms extrapolation. Local movement remains predicted immediately. Teleports, gates, rewind and level changes reset interpolation. Input acknowledgement progress is monitored separately from state delivery, so a stalled uplink cannot keep replaying abandoned movement while the downlink remains alive.
 
-The existing nginx configuration needs a one-time root-owned WebSocket route update. After reviewing `deploy/ludia/enable-websocket.py`, run:
+The public WebSocket route is enabled on Ludia and has passed two-browser HTTPS verification. For a fresh installation, the one-time root-owned route update is prepared in `deploy/ludia/enable-websocket.py`:
 
 ```sh
 ssh -t ludia 'sudo python3 /home/mrinmoy/goatesque/current/enable-websocket.py'

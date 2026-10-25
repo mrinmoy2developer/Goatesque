@@ -45,4 +45,4 @@ node --test tests/*.test.mjs
 python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
-WebSockets use `/api/rooms/socket` on the same domain. The installed, narrowly scoped activation script is `~/goatesque/current/enable-websocket.py`; run it with sudo using the command in the main README. Its route was tested through an unprivileged nginx instance before requesting root activation. Until activated, clients automatically use the persistent state-stream fallback through the existing `/api/rooms` route. WebRTC and TURN are not deployed.
+WebSockets use `/api/rooms/socket` on the same domain. The installed, narrowly scoped activation script is `~/goatesque/current/enable-websocket.py`; run it with sudo using the command in the main README. Its route was tested through an unprivileged nginx instance before requesting root activation. The public WebSocket route is enabled and verified. Clients automatically use the persistent state-stream fallback through `/api/rooms` if WebSockets are unavailable. WebRTC and TURN are not deployed.
