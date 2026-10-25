@@ -2,6 +2,64 @@
 
 Goatesque is a playable browser recreation of DYO's cooperative split-screen puzzles, using original artwork, menu and map assets, 31 gameplay rooms behind the original 30 level-map nodes, and room-code online co-op.
 
+[Play Goatesque](https://goatesque.mrinmoy.org) · [Original DYO on itch.io](https://josia-roncancio.itch.io/dyo) · [DYO on Steam](https://store.steampowered.com/app/791470/DYO/) · [How it was rebuilt](#how-it-was-rebuilt)
+
+![Goatesque title screen with the original split stone minotaur head](screenshots/image2.png)
+
+DYO was created by Josia Roncancio and Team DYO. This independent browser reconstruction adds online room-code co-op and mobile controls; the original game, artwork, music, and design remain credited to their creators.
+
+## Screenshots
+
+These are screenshots of **Goatesque**, using DYO's original artwork.
+
+| Split-screen puzzle room | Campaign map |
+| --- | --- |
+| <img src="screenshots/image6.png" alt="White and red minotaurs exploring separate halves of a stone labyrinth" width="420"> | <img src="screenshots/image1..png" alt="The reconstructed campaign map with linked level nodes" width="420"> |
+
+<details>
+<summary>Online lobby, control selection, and rewind</summary>
+
+| Online room creation and joining | Original input-selection screen |
+| --- | --- |
+| <img src="screenshots/image4.png" alt="Goatesque online lobby with room creation and an eight-character join code" width="420"> | <img src="screenshots/image3.png" alt="Four original input modes: shared controller, two controllers, hybrid, and keyboard" width="420"> |
+
+![Both panes visible while rewinding a puzzle](screenshots/image5.png)
+
+</details>
+
+## DYO in motion
+
+These clips show the **original DYO**, from its [official Steam listing](https://store.steampowered.com/app/791470/DYO/). Steam currently supplies the loops as videos; the GIF versions below were converted for this README. They demonstrate the original puzzle mechanics, rather than Goatesque's added online features.
+
+| Split-screen platforming | Coordinating the two views |
+| --- | --- |
+| <img src="docs/media/dyo-split-screen.gif" alt="Original DYO promotional loop showing two minotaurs navigating a split-screen maze" width="420"> | <img src="docs/media/dyo-cooperative-puzzle.gif" alt="Original DYO promotional loop demonstrating cooperation across the two views" width="420"> |
+
+Promotional footage and original artwork: **Team DYO / Josia Roncancio**. [Media sources and conversion details](docs/media/SOURCES.md).
+
+## How it was rebuilt
+
+The reconstruction started from the official free Windows download on [itch.io](https://josia-roncancio.itch.io/dyo). The game logic was studied statically; the Windows executable was not run here for a matched side-by-side comparison.
+
+1. **Identify the shipped files.** [Reverse Engineer Anything (REA)](https://github.com/morluto/rea), version 6.8.0, inventoried the ZIP and inspected the executable's PE imports. This identified a 32-bit Windows runner. REA rejected the GameMaker `data.win` format, so it was not the tool that recovered the gameplay logic.
+2. **Decode GameMaker data and levels.** Small local Python parsers read the `data.win` FORM chunks and VM references, the external `.dlf` grids, and native room declarations. They recovered geometry, spawns, camera sizes, objects, and campaign ordering. The final browser campaign has **31 rooms behind 30 map nodes**.
+3. **Verify the mechanics and interface.** [UndertaleModTool CLI](https://github.com/UnderminersTeam/UndertaleModTool), version 0.9.2.0, decompiled selected gameplay and UI entries. Their assignments and control flow supplied the movement constants, seam transforms, rewind rules, gate conditions, menu layouts, and transition timings.
+4. **Export and package the artwork.** UndertaleModTool exported the sprites and metadata. Python and Pillow packed **900 frames from 155 sprites into 18 lossless atlases** using [the included packer](scripts/pack-dyo-assets.py). The exported pixels, origins, dimensions, and atlas crops were checked; selected audio was transcoded with FFmpeg, and the original font retains its SIL license.
+5. **Implement the browser game.** A newly written [JavaScript engine](public/game/engine.mjs) and [Canvas renderer](public/game/renderer.mjs) consume the recovered numeric layouts and asset manifests. Menus, controls, both screen halves, door/floor effects, and rewind were rebuilt around those observations.
+6. **Add browser-specific features.** Touch controls, fullscreen, invitations, and online co-op were added independently. Ludia runs authoritative physics; WebSockets carry inputs and snapshots, with local prediction and adaptive remote interpolation. These online features are additions to DYO's original local co-op design.
+7. **Check behavior and regressions.** Node's test runner covers physics, layouts, ownership, replay, gates, rewind, and rendering boundaries. Playwright checks two browser clients, mobile layouts, and delayed/disconnected network scenarios. These checks validate this reconstruction; they do not establish full equivalence to the Windows game.
+
+| Tool | Role in this project |
+| --- | --- |
+| [Reverse Engineer Anything](https://github.com/morluto/rea) | Archive inventory and PE import inspection |
+| Local Python decoders (`struct`, `json`, `hashlib`) | Read GameMaker bytecode references, room data, level grids, and artifact hashes |
+| [UndertaleModTool CLI](https://github.com/UnderminersTeam/UndertaleModTool) | Verify focused decompilations and export original sprites/metadata |
+| Python + [Pillow](https://python-pillow.github.io/) | Pack and compare lossless sprite atlases |
+| [FFmpeg](https://ffmpeg.org/) | Transcode selected audio and prepare the Steam-loop GIFs above |
+| Node.js + Canvas + Playwright | Implement and validate the browser reconstruction and online transport |
+
+See [REVERSE_ENGINEERING.md](REVERSE_ENGINEERING.md) for the artifact digest, workflow, generated-data map, and fidelity limits. Original executables, recovered disassemblies, and research-only exports stay outside this repository.
+
 ## Ludia hosting
 
 **Goatesque** is live at `https://goatesque.mrinmoy.org`. The original source artwork and Team DYO credit remain attributed to their creators.
