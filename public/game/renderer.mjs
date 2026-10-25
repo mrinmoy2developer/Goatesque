@@ -120,7 +120,7 @@ export class Renderer {
   if(closed&&previous.frame>=4)for(const p of players){const id=1-engine.players.indexOf(p),offset=gate.capacity===2?40-80*id:5*sx;this.sprite('sprGateHeads',id,x+offset,gate.y-(gate.capacity===2?80:75),sx,1);}
  }
  player(p,index,ghost){
-  const c=this.ctx,frame=this.playerFrames[index];c.save();if(ghost){c.globalAlpha=.4;c.filter='brightness(.08)';}
+  const c=this.ctx,frame=this.playerFrames[index];c.save();if(ghost)c.globalAlpha*=.5;
   this.sprite(frame.sprite,frame.frame,p.x,p.y,p.face*p.scale,p.scale);c.restore();
  }
 }
