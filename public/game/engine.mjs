@@ -145,6 +145,16 @@ export class Engine {
     }
     if(p.y>this.level.height*64+200||p.x<0||p.x>this.level.width*64){const s=this.level.spawns[index];p.x=s.x;p.y=s.y;p.vx=0;p.vy=0;p.view=index;p.scale=1;this.cameras[index].locked=false;}
   }
+  predictPlayer(index,input){
+    if(this.won||this.rewinding||input.rewind||this.players[index].gate>=0)return;
+    // Predict only this body against the last authoritative world. Carrying,
+    // pushing, camera ownership and shared time remain the host's decisions.
+    const world=Object.create(this),p={...this.players[index]};
+    world.players=this.players.map((other,i)=>i===index?p:{...other});world.cameras=this.cameras.map(c=>({...c}));world.blocks=this.blocks.map(b=>({...b}));world.events=[];
+    world.movePlayer(p,{...input,lock:p.lastLock,gate:p.lastGate},index);
+    this.players[index]=p;
+    if(!world.cameras[p.owner].locked&&p.gate<0){world.centerCamera(p.owner);this.cameras[p.owner]=world.cameras[p.owner];}
+  }
   step(inputs=[emptyInput(),emptyInput()]) {
     if(inputs.some((input,i)=>(input?.restart||0)>this.players[i].lastRestart)){this.load(this.index);this.players.forEach((p,i)=>Object.assign(p,{lastJump:inputs[i]?.jump||0,lastLock:inputs[i]?.lock||0,lastRestart:inputs[i]?.restart||0,lastGate:inputs[i]?.gate||0,lastSwitch:inputs[i]?.switch||0}));return;}
     if(this.level.rewindEnabled!==false&&inputs.some(input=>input?.rewind)){this.rewindRate+=.01;if(this.history.length>1)this.rewindFrames(Math.floor(this.rewindRate));this.rewinding=true;return;}

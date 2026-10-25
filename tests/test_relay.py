@@ -14,6 +14,31 @@ spec.loader.exec_module(relay)
 
 
 class RelayTests(unittest.TestCase):
+    def test_reordered_protocol_packets_never_restore_old_controls_or_world_state(self):
+        rooms = relay.Rooms()
+        host = rooms.request({'action': 'create'})
+        guest = rooms.request({'action': 'join', 'code': host['code']})
+        for packet, right in [(2, False), (1, True)]:
+            rooms.request({**guest, 'action': 'sync', 'input': {'protocol': 2, 'packet': packet, 'epoch': 1, 'stream': 2, 'right': right, 'frames': [[packet, int(right) * 2, 0, 0, 0, 0, 0]]}})
+        latest = rooms.request({**host, 'action': 'sync', 'state': {'players': [{}, {}], 'protocol': 2, 'packet': 2, 'tick': 200}})
+        self.assertFalse(latest['input']['right'])
+        self.assertEqual(latest['input']['packet'], 2)
+        self.assertEqual(latest['input']['frames'][0][0], 2)
+        rooms.request({**host, 'action': 'sync', 'state': {'players': [{}, {}], 'protocol': 2, 'packet': 1, 'tick': 100}})
+        self.assertEqual(rooms.request({**guest, 'action': 'sync', 'input': {'protocol': 2, 'packet': 3}})['state']['tick'], 200)
+
+    def test_input_batches_are_bounded_and_new_guest_packet_numbers_start_fresh(self):
+        rooms = relay.Rooms()
+        host = rooms.request({'action': 'create'})
+        guest = rooms.request({'action': 'join', 'code': host['code']})
+        rooms.request({**guest, 'action': 'sync', 'input': {'protocol': 2, 'packet': 200, 'frames': [[i+1, 2, 0, 0, 0, 0, 0] for i in range(200)]}})
+        state = {'players': [{}, {}]}
+        self.assertEqual(len(rooms.request({**host, 'action': 'sync', 'state': state})['input']['frames']), 180)
+        rooms.request({**guest, 'action': 'leave'})
+        guest = rooms.request({'action': 'join', 'code': host['code']})
+        rooms.request({**guest, 'action': 'sync', 'input': {'protocol': 2, 'packet': 1, 'stream': 1}})
+        self.assertEqual(rooms.request({**host, 'action': 'sync', 'state': state})['input']['packet'], 1)
+
     def test_two_players_authentication_rejoin_and_snapshot_protocol(self):
         rooms = relay.Rooms()
         host = rooms.request({'action': 'create'})

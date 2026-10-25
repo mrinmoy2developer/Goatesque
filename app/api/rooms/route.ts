@@ -46,8 +46,13 @@ export async function POST(request: Request) {
     if (host) {
       const state = body.state;
       if (!state || typeof state !== "object" || !Array.isArray((state as Record<string, unknown>).players)) return json({ error: "Invalid game state." }, 400);
-      await env.DB.prepare("UPDATE rooms SET state=?,host_seen=?,revision=revision+1 WHERE code=? AND host_token=?")
-        .bind(JSON.stringify(state), now, code, body.token).run();
+      const update = state as Record<string, unknown>;
+      const modern = update.protocol === 2;
+      const packet = Math.max(0, Math.min(1e12, Number(update.packet) || 0));
+      await env.DB.prepare(modern
+        ? "UPDATE rooms SET state=?,host_seen=?,revision=revision+1 WHERE code=? AND host_token=? AND COALESCE(json_extract(state,'$.packet'),-1) < ?"
+        : "UPDATE rooms SET state=?,host_seen=?,revision=revision+1 WHERE code=? AND host_token=? AND COALESCE(json_extract(state,'$.protocol'),0) <> ?")
+        .bind(JSON.stringify(state), now, code, body.token, modern ? packet : 2).run();
       const digest=room.guest_token?await crypto.subtle.digest("SHA-256",new TextEncoder().encode(room.guest_token)):null;
       const guestSession=digest?Array.from(new Uint8Array(digest)).slice(0,8).map(n=>n.toString(16).padStart(2,"0")).join(""):null;
       return json({ input: room.guest_seen > now - 2500 ? JSON.parse(room.input) : {}, guestSession, connected: room.guest_seen > now - 5000, peerSeen: room.guest_seen, serverTime: now });
@@ -56,7 +61,14 @@ export async function POST(request: Request) {
     const input = { seq:Math.max(0,Math.min(1e12,Number(source.seq)||0)), left: !!source.left, right: !!source.right, gate:Math.max(0,Math.min(1e9,Number(source.gate)||0)), jump: Math.max(0, Math.min(1e9, Number(source.jump) || 0)), lock: Math.max(0, Math.min(1e9, Number(source.lock) || 0)), restart: Math.max(0, Math.min(1e9, Number(source.restart) || 0)) };
     Object.assign(input,{leftFrames:Math.max(0,Math.min(1e12,Number(source.leftFrames)||0)),rightFrames:Math.max(0,Math.min(1e12,Number(source.rightFrames)||0))});
     Object.assign(input,{rewind:!!source.rewind,switchHeld:!!source.switchHeld,switch:Math.max(0,Math.min(1e9,Number(source.switch)||0)),confirm:Math.max(0,Math.min(1e9,Number(source.confirm)||0)),menu:Math.max(0,Math.min(1e9,Number(source.menu)||0))});
-    await env.DB.prepare("UPDATE rooms SET input=?,guest_seen=? WHERE code=? AND guest_token=?").bind(JSON.stringify(input), now, code, body.token).run();
+    const bound=(value:unknown,ceiling=1e9)=>Math.max(0,Math.min(ceiling,Math.floor(Number(value)||0)));
+    const protocol=source.protocol===2?2:0,packet=bound(source.packet,1e12);
+    const frames=Array.isArray(source.frames)?source.frames.slice(0,180).filter((f:unknown)=>Array.isArray(f)&&f.length===7).map((f:unknown[])=>f.map((v,i)=>bound(v,i===0?1e12:i===1?15:1e9))):[];
+    Object.assign(input,{protocol,packet,epoch:bound(source.epoch),stream:bound(source.stream),frames});
+    await env.DB.prepare(protocol===2
+      ? "UPDATE rooms SET input=?,guest_seen=? WHERE code=? AND guest_token=? AND COALESCE(json_extract(input,'$.packet'),-1) < ?"
+      : "UPDATE rooms SET input=?,guest_seen=? WHERE code=? AND guest_token=? AND COALESCE(json_extract(input,'$.protocol'),0) <> ?")
+      .bind(JSON.stringify(input), now, code, body.token, protocol===2?packet:2).run();
     return json({ state: JSON.parse(room.state), connected: room.host_seen > now - 5000, revision: room.revision, serverTime: now });
   } catch {
     return json({ error: "The room server could not complete that request. Try again." }, 500);

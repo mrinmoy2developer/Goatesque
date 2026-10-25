@@ -9,9 +9,9 @@ test('another packet preserves the partially corrected visible position',()=>{co
 for(const [name,change]of[
  ['a seam crossing',e=>e.players[1].view=0],['camera locking',e=>e.cameras[0].locked=true],['rewind',e=>e.rewinding=true],['room restart',e=>e.serial++],['gate entry',e=>e.players[1].gate=0],['a large teleport',e=>e.players[1].x+=1000]
 ])test(`${name} resets smoothing immediately`,()=>{const e=pose(),s=new NetworkPresentation(),before=s.capture(e);e.players[1].x-=20;change(e);s.reconcile(before,e);assert.equal(s.present(e,0).players[1].x,e.players[1].x);});
-test('urgent polling waits for the active request and never overlaps requests',async()=>{
- const original=globalThis.fetch;let active=0,max=0,calls=0;const releases=[];
- globalThis.fetch=async()=>{calls++;active++;max=Math.max(active,max);await new Promise(r=>releases.push(r));active--;return{ok:true,json:async()=>({connected:true})};};
- const connection=new RoomConnection({code:'test'},()=>{},()=>{});
- try{connection.start(()=>({}));connection.requestSoon();connection.requestSoon();assert.equal(calls,1);releases.shift()();await new Promise(r=>setTimeout(r,15));assert.equal(calls,2);assert.equal(max,1);connection.stop();releases.shift()();await new Promise(r=>setTimeout(r,10));assert.equal(calls,2);}finally{connection.stop();for(const release of releases)release();globalThis.fetch=original;}
+test('pipelining is bounded to three requests and old responses never roll state back',async()=>{
+ const original=globalThis.fetch;let active=0,max=0,calls=0;const releases=[],seen=[];
+ globalThis.fetch=async()=>{const id=++calls;active++;max=Math.max(active,max);await new Promise(r=>releases.push(r));active--;return{ok:true,json:async()=>({id,connected:true})};};
+ const connection=new RoomConnection({code:'test'},data=>seen.push(data.id),()=>{});
+ try{connection.start(()=>({}));connection.poll();connection.poll();connection.poll();assert.equal(calls,3);assert.equal(max,3);releases[2]();await new Promise(r=>setTimeout(r,5));releases[0]();releases[1]();await new Promise(r=>setTimeout(r,5));assert.deepEqual(seen,[3]);connection.stop();}finally{connection.stop();for(const release of releases)release();globalThis.fetch=original;}
 });

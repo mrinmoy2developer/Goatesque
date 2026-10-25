@@ -29,6 +29,22 @@ def counter(value, ceiling=10**9):
         return 0
 
 
+def sanitize_input(source):
+    controls = {key: bool(source.get(key)) for key in ['left', 'right', 'rewind', 'switchHeld']}
+    controls.update({key: counter(source.get(key)) for key in ['gate', 'jump', 'lock', 'restart', 'switch', 'confirm', 'menu', 'epoch', 'stream']})
+    controls.update({key: counter(source.get(key), 10**12) for key in ['seq', 'packet']})
+    controls['protocol'] = 2 if source.get('protocol') == 2 else 0
+    controls['frames'] = []
+    frames = source.get('frames', [])
+    if isinstance(frames, list):
+        for frame in frames[:180]:
+            if isinstance(frame, list) and len(frame) == 7:
+                clean = [counter(frame[0], 10**12), counter(frame[1], 15)] + [counter(v) for v in frame[2:]]
+                if clean[0] > 0:
+                    controls['frames'].append(clean)
+    return controls
+
+
 class Rooms:
     def __init__(self, max_rooms=16, clock=time.time):
         self.rooms, self.lock, self.max_rooms, self.clock = {}, threading.Lock(), max_rooms, clock
@@ -61,7 +77,7 @@ class Rooms:
                 if room['guest_token']:
                     raise ApiError(409, 'This room already has two players.')
                 secret = secrets.token_urlsafe(48)
-                room.update(guest_token=secret, guest_seen=now, input={})
+                room.update(guest_token=secret, guest_seen=now, input={}, guest_packet=-1)
                 return dict(code=code, token=secret, role='guest')
             if not room:
                 raise ApiError(404, 'Room expired. Create a new room.')
@@ -76,7 +92,7 @@ class Rooms:
                 if host:
                     del self.rooms[code]
                 else:
-                    room.update(guest_token=None, guest_seen=0, input={})
+                    room.update(guest_token=None, guest_seen=0, input={}, guest_packet=-1)
                 return {'ok': True}
             if action != 'sync':
                 raise ApiError(400, 'Unknown room action.')
@@ -84,16 +100,24 @@ class Rooms:
                 state = body.get('state')
                 if not isinstance(state, dict) or not isinstance(state.get('players'), list) or len(state['players']) != 2:
                     raise ApiError(400, 'Invalid game state.')
-                room.update(state=state, host_seen=now, revision=room['revision'] + 1)
+                packet = counter(state.get('packet'), 10**12)
+                modern = state.get('protocol') == 2
+                if modern and packet > room.get('host_packet', -1) or not modern and room.get('host_packet', -1) < 0:
+                    room.update(state=state, revision=room['revision'] + 1)
+                    if modern:
+                        room['host_packet'] = packet
+                room['host_seen'] = now
                 session = hashlib.sha256(room['guest_token'].encode()).hexdigest()[:16] if room['guest_token'] else None
                 return dict(input=room['input'] if room['guest_seen'] > now - 2500 else {}, guestSession=session, connected=bool(room['guest_token'] and room['guest_seen'] > now - 5000), peerSeen=room['guest_seen'], serverTime=now)
             source = body.get('input', {})
             if not isinstance(source, dict):
                 raise ApiError(400, 'Invalid input.')
-            controls = {key: bool(source.get(key)) for key in ['left', 'right', 'rewind', 'switchHeld']}
-            controls.update({key: counter(source.get(key)) for key in ['gate', 'jump', 'lock', 'restart', 'switch', 'confirm', 'menu']})
-            controls.update({key: counter(source.get(key), 10**12) for key in ['seq', 'leftFrames', 'rightFrames']})
-            room.update(input=controls, guest_seen=now)
+            controls = sanitize_input(source)
+            if controls['protocol'] == 2 and controls['packet'] > room.get('guest_packet', -1) or controls['protocol'] != 2 and room.get('guest_packet', -1) < 0:
+                room['input'] = controls
+                if controls['protocol'] == 2:
+                    room['guest_packet'] = controls['packet']
+            room['guest_seen'] = now
             return dict(state=room['state'], connected=room['host_seen'] > now - 5000, revision=room['revision'], serverTime=now)
 
 
@@ -161,14 +185,14 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if urlsplit(self.path).path == '/api/health':
-            return self.json_response({'ok': True, 'game': 'Goatesque'})
+            return self.json_response({'ok': True, 'game': 'Goatesque', 'protocol': 2})
         if not self.allowed_static():
             return self.send_error(404)
         super().do_GET()
 
     def do_HEAD(self):
         if urlsplit(self.path).path == '/api/health':
-            return self.json_response({'ok': True, 'game': 'Goatesque'}, head=True)
+            return self.json_response({'ok': True, 'game': 'Goatesque', 'protocol': 2}, head=True)
         if not self.allowed_static():
             return self.send_error(404)
         super().do_HEAD()
