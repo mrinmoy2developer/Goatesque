@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   manifest: "/game/app-manifest.json",
   appleWebApp: { capable:true, title:"Goatesque", statusBarStyle:"black-translucent" },
   icons: {
-    icon: "/favicon.svg?v=2",
-    shortcut: "/favicon.svg?v=2",
-    apple: "/game/icons/goatesque-180.png",
+    icon: "/favicon.svg?v=3",
+    shortcut: "/favicon.svg?v=3",
+    apple: "/game/icons/goatesque-180.png?v=3",
   },
 };
 export const viewport={width:"device-width",initialScale:1,viewportFit:"cover"};
