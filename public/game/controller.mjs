@@ -19,7 +19,7 @@ export async function boot(){
  audio.sounds=ui.sound;audio.music=ui.music;
  ui.touch=read('goatesque-touch',matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0);document.documentElement.dataset.touch=ui.touch?'on':'off';$('touch-toggle').setAttribute('aria-pressed',String(ui.touch));
  const native=new NativeInterface($('world'),assets,$('native-buttons'),action),inputs=[emptyInput(),emptyInput()],keys=new Set(),cleanup=[];
- let mode='local',room=null,connection=null,remote=emptyInput(),hostInput=emptyInput(),transition=null,transitionId=0,keyboardSwap=false,touchPlayer=0,last=0,accumulator=0,frame=0,raf=0,toastTimer,remotePaused=false,remoteMenu=0,remoteConfirm=0,remoteSession=null,history=[],inputReturn='play',seenRewind=false;
+ let mode='local',room=null,connection=null,remote=emptyInput(),hostInput=emptyInput(),transition=null,transitionId=0,keyboardSwap=false,touchPlayer=0,last=0,accumulator=0,frame=0,raf=0,toastTimer,remotePaused=false,remoteMenu=0,remoteConfirm=0,remoteSession=null,history=[],inputReturn='play',seenRewind=false,lastRevision=-1,lastInputSignature='';
  const motion={left:0,right:0},touch=[{left:false,right:false,rewind:false,switchHeld:false},{left:false,right:false,rewind:false,switchHeld:false}];
  const on=(target,type,fn,options)=>{target.addEventListener(type,fn,options);cleanup.push(()=>target.removeEventListener(type,fn,options));};
  const authority=()=>mode!=='guest';const mine=()=>mode==='guest'?1:0;const busy=()=>!!transition||!!ui.overlay||!$('online-dialog').hidden;
@@ -67,13 +67,17 @@ export async function boot(){
   const b=$(kind==='create'?'create-room':'join-room');b.disabled=true;$('room-error').textContent='';
   try{
    const session=await roomRequest({action:kind,code:$('room-code').value.toUpperCase().trim()});connection?.stop();room=session;mode=session.role;ui.guest=mode==='guest';inputs.forEach(i=>Object.assign(i,emptyInput(),{leftFrames:0,rightFrames:0}));remote=emptyInput();remoteMenu=remoteConfirm=0;motion.left=motion.right=0;history=[];
+   lastRevision=-1;lastInputSignature='';
    if(mode==='host'){ui.inputMode=3;transition=null;openScene({screen:'map',selected:Math.max(0,selectedForLevel(engine.index))});}
    connection=new RoomConnection(session,data=>{
     if(mode==='host'){if(data.guestSession&&data.guestSession!==remoteSession){remoteSession=data.guestSession;motion.left=motion.right=0;remoteMenu=remoteConfirm=0;Object.assign(engine.players[1],{lastJump:0,lastLock:0,lastGate:0,lastSwitch:0,lastRestart:0});}remote=data.input||emptyInput();}
     else if(data.state?.players){
+     if(Number.isFinite(data.revision)){if(data.revision<=lastRevision)return;lastRevision=data.revision;}
+     const before=renderer.networkPresentation.capture(engine);
      const changed=engine.serial!==data.state.serial||engine.index!==data.state.index;engine.restore(data.state);hostInput=data.state.hostInput||emptyInput();remotePaused=!!data.state.paused;receivePresentation(data.state.presentation);
      if(changed)history=[];const ack=data.state.guestSeq||0;history=history.filter(h=>h.seq>ack).slice(-24);
      if(ui.screen==='play'&&!busy()&&!remotePaused&&!data.state.rewinding&&!hostInput.rewind&&!inputs[1].rewind)for(const h of history)engine.step([hostInput,h]);engine.events.length=0;
+     renderer.networkPresentation.reconcile(before,engine);
     }
    },status=>{
     $('connection-label').textContent=status.error||(status.connected?`Connected · ${status.latency} ms`:'Waiting for your friend');$('connection-dot').classList.toggle('connected',status.connected);
@@ -132,6 +136,7 @@ export async function boot(){
    inputs[i].left=keyboardHeld('left',i)||!!gp.left||touch[i].left;inputs[i].right=keyboardHeld('right',i)||!!gp.right||touch[i].right;
    inputs[i].rewind=keyboardHeld('rewind',i)||!!gp.rewind||touch[i].rewind;inputs[i].switchHeld=keyboardHeld('switch',i)||!!gp.switchHeld||touch[i].switchHeld;
   }
+  if(mode!=='local'){const input=inputs[mine()],signature=JSON.stringify([input.left,input.right,input.jump,input.lock,input.gate,input.switch,input.switchHeld,input.rewind,input.menu,input.confirm,input.restart]);if(signature!==lastInputSignature){lastInputSignature=signature;connection?.requestSoon();}}
   if(mode==='host'){
    if((remote.menu||0)>remoteMenu){remoteMenu=remote.menu;requestMap();}
    if((remote.confirm||0)>remoteConfirm){remoteConfirm=remote.confirm;confirmCompletion();}
@@ -148,7 +153,7 @@ export async function boot(){
   }
   ui.whiteFlash=Math.max(0,(ui.whiteFlash||0)-fixed*.02);$('game-shell').dataset.screen=ui.screen;
   ui.rewinding=ui.screen==='play'&&engine.rewinding;audio.setRewinding(ui.rewinding&&!busy());$('touch-player').hidden=mode!=='local';
-  renderer.preferences={inputMode:ui.inputMode,keyboardSwap,online:mode!=='local',rewound:seenRewind};
+  renderer.preferences={inputMode:ui.inputMode,keyboardSwap,online:mode!=='local',remote:mode==='guest',paused:busy()||remotePaused,rewound:seenRewind};
   if(ui.screen==='play')renderer.render(engine,dt);
   native.render(ui,transition,dt);
   raf=requestAnimationFrame(animate);

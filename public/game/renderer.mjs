@@ -1,4 +1,5 @@
 import {edgeType} from './terrain.mjs';
+import {NetworkPresentation} from './network-presentation.mjs';
 const noise=(x,y)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n);};
 const randomGenerator=seed=>()=>{seed=(Math.imul(1664525,seed)+1013904223)>>>0;return seed/4294967296;};
 export const splitViewports=engine=>engine.cameras.map((camera,view)=>({camera,view,left:view*960,width:960,height:1080}));
@@ -7,6 +8,7 @@ export class Renderer {
  constructor(canvas,assets){
   this.canvas=canvas;this.ctx=canvas.getContext('2d');this.assets=assets;this.time=0;this.themeCache=new Map();this.animations=[{},{}];this.gateFrames=new Map();this.levelId=null;
   this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  this.networkPresentation=new NetworkPresentation();
  }
  sprite(name,frame,x,y,sx=1,sy=sx,rotation=0,alpha=1,context=this.ctx){return this.assets.draw(context,name,frame,x,y,sx,sy,rotation,alpha);}
  theme(id){
@@ -34,7 +36,8 @@ export class Renderer {
    let action=!p.ground?(p.vy>0?'fall':'jump'):carrying?(Math.abs(p.vx)>1?'carryWalk':'carry'):(p.pushFrames>0&&Math.abs(p.vx)<1?'push':Math.abs(p.vx)>1?'walk':'idle');
    const state=this.animations[i];if(state.action!==action){state.phase=0;state.action=action;state.tick=engine.tick;}
    const speed=action==='walk'||action==='carryWalk'?.15/10.2*Math.abs(p.vx/p.scale):action==='push'?.15:i===0?.055:.05;
-   state.phase=(state.phase||0)+(engine.tick-(state.tick||0))*speed;state.tick=engine.tick;
+   const elapsed=this.preferences?.remote&&!engine.rewinding?(this.preferences.paused?0:this.lastDt*.06):engine.tick-(state.tick||0);
+   state.phase=(state.phase||0)+elapsed*speed;state.tick=engine.tick;
    return {sprite:this.assets.renderMap.players[i][action].name,frame:state.phase};
   });
   const native=this.assets.renderMap.nativeScenes.find(scene=>scene.id===engine.level.id);
@@ -49,6 +52,7 @@ export class Renderer {
   }).filter(Boolean).filter(d=>d.type!==30&&d.type!==31).sort((a,b)=>b.depth-a.depth);
  }
  render(engine,dt=16){
+  this.lastDt=dt;engine=this.preferences?.remote?this.networkPresentation.present(engine,dt):engine;this.presented=engine;
   const cv=this.canvas,c=this.ctx;this.time+=this.reduced?0:dt*.001;
   const width=cv.clientWidth,height=cv.clientHeight,dpr=Math.min(devicePixelRatio||1,2);
   if(cv.width!==Math.round(width*dpr)||cv.height!==Math.round(height*dpr)){cv.width=Math.round(width*dpr);cv.height=Math.round(height*dpr);}

@@ -45,7 +45,7 @@ Apply that migration once per local database. Hosted migrations are applied duri
 - Completion closes the stone heads and waits for Space/Enter/Up, then returns to the map. R restarts while this completion screen is waiting. The first introduction advances automatically to the second.
 - Online: choose Online co-op → Create a room → copy invite. Your friend opens the link and joins. Either movement key set controls your own character. Host remains the simulation authority and chooses levels; menus and transitions synchronize between browsers. Either player can confirm completion or return to the map.
 
-The server stores the latest state and inputs in a short-lived room. Independent action counters preserve jump/lock/door/restart requests between polls; motion counters retain short taps. Guest prediction is reconciled with host snapshots. Keep the host's browser tab active. This implementation uses an HTTPS relay, so Tailscale is optional and is not configured.
+The server stores the latest state and inputs in a short-lived room. Independent action counters preserve jump/lock/door/restart requests between polls; motion counters retain short taps. The relay polls at a target20Hz and sends input changes promptly without overlapping requests. Guest prediction is reconciled with fresh host snapshots; duplicate revisions are ignored. Small visual position/camera/block corrections ease out over roughly90ms without changing physics, while portals, locking, rewind, gate entry and restarts reset smoothing immediately. Guest walk animations use a stable visual clock. Keep the host's browser tab active. This implementation uses an HTTPS relay, so Tailscale is optional and is not configured.
 
 ## Verification
 
