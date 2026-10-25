@@ -94,7 +94,7 @@ export async function boot(){
     $('connection-label').textContent=(ui.networkWaiting?'Synchronizing with server…':null)||status.error||(status.connected?`Connected · ${status.latency} ms`:'Waiting for your friend');$('connection-dot').classList.toggle('connected',status.connected);
     if(status.closed&&mode==='guest'){connection?.stop();connection=null;room=null;mode='local';ui.guest=false;transition=null;switchScene({screen:'title'});$('room-bar').hidden=true;$('online-button').hidden=false;toast('The host closed the room.');}
    });
-   connection.start(()=>({input:{...inputs[mine()],...guestCommands.payload(),packet:++packet},...(mode==='host'?{presentation:presentation(),paused:ui.screen!=='play'||!!transition||!!ui.overlay,load:serverLoad}:{})}));
+   connection.start(cursor=>({input:{...inputs[mine()],...guestCommands.payload(cursor),packet:++packet},...(mode==='host'?{presentation:presentation(),paused:ui.screen!=='play'||!!transition||!!ui.overlay,load:serverLoad}:{})}));
    $('online-dialog').hidden=true;$('room-bar').hidden=false;$('room-display').textContent=room.code;$('your-player').textContent=mode==='host'?'White minotaur':'Red minotaur';$('online-button').hidden=true;audio.unlock();$('world').focus();
   }catch(error){$('room-error').textContent=error.message;}finally{b.disabled=false;}
  }
@@ -167,7 +167,7 @@ export async function boot(){
   }
   ui.whiteFlash=Math.max(0,(ui.whiteFlash||0)-fixed*.02);$('game-shell').dataset.screen=ui.screen;
   ui.rewinding=ui.screen==='play'&&engine.rewinding;audio.setRewinding(ui.rewinding&&!busy());$('touch-player').hidden=mode!=='local';
-  renderer.preferences={inputMode:ui.inputMode,keyboardSwap,online:mode!=='local',remote:mode!=='local',paused:busy()||remotePaused,rewound:seenRewind};
+  renderer.preferences={inputMode:ui.inputMode,keyboardSwap,online:mode!=='local',remote:mode!=='local',localPlayer:mode!=='local'?mine():null,input:inputs[mine()],fraction:accumulator/(1000/60),paused:busy()||remotePaused,rewound:seenRewind};
   if(ui.screen==='play')renderer.render(engine,dt);
   native.render(ui,transition,dt);
   raf=requestAnimationFrame(animate);

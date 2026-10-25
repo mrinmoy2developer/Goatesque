@@ -8,7 +8,7 @@ export class GuestCommands {
  cancel(){this.pending=[];this.stream++;}
  push(input,epoch){if(epoch!==this.epoch)this.reset(epoch);if(this.pending.length>=MAX_PENDING)return null;const frame=encodeInput(++this.sequence,input);this.pending.push(frame);return decodeInput(frame);}
  acknowledge(state){if(state.serial!==this.epoch)this.reset(state.serial);if(state.guestStream!==this.stream)return false;const ack=state.guestAck||0;this.sequence=Math.max(this.sequence,ack);if((state.guestResync||0)!==this.resync){this.pending=[];this.resync=state.guestResync||0;}else this.pending=this.pending.filter(frame=>frame[0]>ack);return true;}
- payload(){return {protocol:INPUT_PROTOCOL,epoch:this.epoch,stream:this.stream,seq:this.sequence,frames:this.pending.map(frame=>[...frame])};}
+ payload(cursor=null){const pending=cursor?.epoch===this.epoch&&cursor.stream===this.stream?this.pending.filter(frame=>frame[0]>cursor.sequence):this.pending;return {protocol:INPUT_PROTOCOL,epoch:this.epoch,stream:this.stream,seq:this.sequence,frames:pending.map(frame=>[...frame])};}
  replay(engine){if(engine.rewinding||engine.won)return;for(const frame of this.pending)engine.predictPlayer(this.player,decodeInput(frame));}
 }
 export class HostCommands {

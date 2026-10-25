@@ -29,3 +29,15 @@ The final compact-receipt/adaptive-fallback update was additionally verified by 
 ## Public WebSocket activation verified — 2026-10-26
 
 The user ran the root activation script successfully. Nginx backup: `/etc/nginx/conf.d/goatesque.nginx.conf.before-websocket-20261025T203011Z`. The public `wss://goatesque.mrinmoy.org/api/rooms/socket` returned HTTP 101 with normal TLS certificate verification and authenticated protocol-3 state. Two browser clients confirmed WebSocket transport, both panes, isolated input ownership, one jump per press, movement while host rendering paused, level changes, shared rewind, guest map requests and zero browser runtime errors. The service is active with zero restarts. No further proxy activation is pending.
+
+## Client latency tuning — 2026-10-26
+
+Static-only update: `~/goatesque/goatesque-latency.tar.gz`, SHA-256 `69471e6f6dc2d9ad86452640c3e9f9ce00648a353b9eeb1ae56069ca1f2f04e0`. Backup: `~/goatesque/backups/20261025T204627Z`. The update preserved server PID 2090381 and active rooms without restarting the service. Backend simulation, public routes and protocol 3 are unchanged.
+
+WebSocket inputs are sent at 60 Hz with a per-connection sequence cursor; retained pending history is resent on reconnect or a new stream. Remote rendering uses a 50–140 ms adaptive jitter buffer and monotone cubic interpolation. Bounded camera extrapolation follows remote motion. Local fractional-frame prediction fills render gaps above 60 Hz and leaves physical state, shared events and action counters unchanged.
+
+All 64 tests passed, including cursor reset/write failure, fallback history retention, jitter-buffer recovery, monotonic remote paths and 120 Hz local rendering without world mutation. Two-browser tests passed through 180–600 ms message delays and a 2.6-second outage, and existing level, door/floor, rewind, mobile and completion checks passed.
+
+A short matched comparison against commit 603b065 at an added 240 ms RTT measured peer input-to-visible-motion around 435 → 382 ms and guest input traffic 17,853 → 15,090 bytes/sec (about 15% lower). The measured stable-link display buffer fell from 100 ms to about 51 ms. These results are from four input pulses in a controlled test; actual international routing and jitter still determine latency. Existing browser sessions keep their loaded code until refreshed.
+
+Final public two-browser verification passed with the tuned client: authenticated WebSockets, both panes, one jump per press, separate input ownership, host-rendering pause, level changes, shared rewind, guest map return and no browser runtime errors. Server PID 2090381 remained active with zero restarts throughout. Temporary local QA listeners were stopped.

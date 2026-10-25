@@ -54,7 +54,7 @@ export class Renderer {
   }).filter(Boolean).filter(d=>![18,19,30,31,87].includes(d.type)).sort((a,b)=>b.depth-a.depth);
  }
  render(engine,dt=16){
-  this.lastDt=dt;engine=this.preferences?.remote?this.networkPresentation.present(engine,dt):engine;this.presented=engine;
+  this.lastDt=dt;engine=this.preferences?.remote?this.networkPresentation.present(engine,dt,undefined,this.preferences):engine;this.presented=engine;
   const cv=this.canvas,c=this.ctx;this.time+=this.reduced?0:dt*.001;
   const width=cv.clientWidth,height=cv.clientHeight,dpr=Math.min(devicePixelRatio||1,2);
   if(cv.width!==Math.round(width*dpr)||cv.height!==Math.round(height*dpr)){cv.width=Math.round(width*dpr);cv.height=Math.round(height*dpr);}
