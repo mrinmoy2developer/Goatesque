@@ -49,7 +49,9 @@ export class Renderer {
    if(object.type===16)name=this.currentTheme.map.rock.name;
    if(!this.assets.sprites[name])return null;
    return {...definition,...object,spriteName:name,frame:object.frame??object.imageSingle??object.image_single??(noise(object.x,index)*this.assets.sprites[name].frames.length)};
-  }).filter(Boolean).filter(d=>d.type!==30&&d.type!==31).sort((a,b)=>b.depth-a.depth);
+  // Doors and breakables have dedicated animated renderers. Drawing their room
+  // declarations here paints a static open door over the closing animation.
+  }).filter(Boolean).filter(d=>![18,19,30,31,87].includes(d.type)).sort((a,b)=>b.depth-a.depth);
  }
  render(engine,dt=16){
   this.lastDt=dt;engine=this.preferences?.remote?this.networkPresentation.present(engine,dt):engine;this.presented=engine;
@@ -124,7 +126,12 @@ export class Renderer {
  gate(engine,gate,index,view){
   const c=this.ctx,camera=engine.cameras[view],players=engine.players.filter(p=>p.gate===index),closed=players.length>=gate.capacity||(players.length>0&&gate.capacity===2&&players.some(p=>p.view===view));
   const name=this.currentTheme.map[gate.capacity===2?'gateBig':'gate'].name;
-  const previous={frame:engine.gateFrames[index]?.[view]||0};
+  const target=engine.gateFrames[index]?.[view]||0,key=index+':'+view;
+  const previous=this.gateFrames.get(key)||{frame:target};
+  // A packet can skip several simulation frames; still display the shutter's
+  // intermediate images instead of jumping straight from open to closed.
+  if(engine.rewinding)previous.frame=target;else previous.frame+=Math.sign(target-previous.frame)*Math.min(Math.abs(target-previous.frame),Math.min(1,(this.lastDt||16.667)*.06));
+  this.gateFrames.set(key,previous);
   const x=camera.x+camera.w/2+(gate.x-camera.x-camera.w/2)*.96,sx=gate.scaleX??1;
   this.sprite(name,previous.frame,x,gate.y,sx,1);
   if(closed&&previous.frame>=4)for(const p of players){const id=1-engine.players.indexOf(p),offset=gate.capacity===2?40-80*id:5*sx;this.sprite('sprGateHeads',id,x+offset,gate.y-(gate.capacity===2?80:75),sx,1);}
