@@ -8,7 +8,7 @@ import hashlib,json,sys,shutil
 source=Path(sys.argv[1]);output=Path(sys.argv[2]);output.mkdir(parents=True,exist_ok=True)
 metadata=json.loads((source/'metadata.json').read_text());entries=[];sprites={}
 for sprite in metadata['sprites']:
- if sprite['name'] in ['mCol','mPlayer','sprite101','sprWall','sprButton'] or sprite['name'].startswith(('sprCred','sprMinoPleb','sprLevelSelect','sprButton','sprUI','sprInput','sprHUD','sprEditor','sprFullscreen','sprMute','sprControls')):continue
+ if sprite['name'] in ['mCol','mPlayer','sprite101','sprWall','sprButton'] or ('--include-ui' not in sys.argv and sprite['name'].startswith(('sprCred','sprMinoPleb','sprLevelSelect','sprButton','sprUI','sprInput','sprHUD','sprEditor','sprFullscreen','sprMute','sprControls'))):continue
  sprites[sprite['name']]={k:sprite[k] for k in ['width','height','originX','originY']};sprites[sprite['name']]['frames']=[None]*sprite['frames']
  for frame in range(sprite['frames']):
   path=source/'Sprites'/f"{sprite['name']}_{frame}.png"

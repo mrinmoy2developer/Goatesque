@@ -48,11 +48,14 @@ export async function POST(request: Request) {
       if (!state || typeof state !== "object" || !Array.isArray((state as Record<string, unknown>).players)) return json({ error: "Invalid game state." }, 400);
       await env.DB.prepare("UPDATE rooms SET state=?,host_seen=?,revision=revision+1 WHERE code=? AND host_token=?")
         .bind(JSON.stringify(state), now, code, body.token).run();
-      return json({ input: room.guest_seen > now - 2500 ? JSON.parse(room.input) : {}, connected: room.guest_seen > now - 5000, peerSeen: room.guest_seen, serverTime: now });
+      const digest=room.guest_token?await crypto.subtle.digest("SHA-256",new TextEncoder().encode(room.guest_token)):null;
+      const guestSession=digest?Array.from(new Uint8Array(digest)).slice(0,8).map(n=>n.toString(16).padStart(2,"0")).join(""):null;
+      return json({ input: room.guest_seen > now - 2500 ? JSON.parse(room.input) : {}, guestSession, connected: room.guest_seen > now - 5000, peerSeen: room.guest_seen, serverTime: now });
     }
     const source = body.input as Record<string, unknown> || {};
     const input = { seq:Math.max(0,Math.min(1e12,Number(source.seq)||0)), left: !!source.left, right: !!source.right, gate:Math.max(0,Math.min(1e9,Number(source.gate)||0)), jump: Math.max(0, Math.min(1e9, Number(source.jump) || 0)), lock: Math.max(0, Math.min(1e9, Number(source.lock) || 0)), restart: Math.max(0, Math.min(1e9, Number(source.restart) || 0)) };
     Object.assign(input,{leftFrames:Math.max(0,Math.min(1e12,Number(source.leftFrames)||0)),rightFrames:Math.max(0,Math.min(1e12,Number(source.rightFrames)||0))});
+    Object.assign(input,{rewind:!!source.rewind,switchHeld:!!source.switchHeld,switch:Math.max(0,Math.min(1e9,Number(source.switch)||0)),confirm:Math.max(0,Math.min(1e9,Number(source.confirm)||0)),menu:Math.max(0,Math.min(1e9,Number(source.menu)||0))});
     await env.DB.prepare("UPDATE rooms SET input=?,guest_seen=? WHERE code=? AND guest_token=?").bind(JSON.stringify(input), now, code, body.token).run();
     return json({ state: JSON.parse(room.state), connected: room.host_seen > now - 5000, revision: room.revision, serverTime: now });
   } catch {

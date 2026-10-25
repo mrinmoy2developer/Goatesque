@@ -1,0 +1,335 @@
+{
+  "evidence": "Static decompilation of official DYO data.win; no original runtime visual recording.",
+  "fps": 60,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "keyboard": {
+    "white": {
+      "left": "KeyA",
+      "right": "KeyD",
+      "jump": "KeyW",
+      "lock": "KeyS",
+      "switch": "KeyE",
+      "rewind": "KeyQ",
+      "gate": "KeyF"
+    },
+    "red": {
+      "left": "ArrowLeft",
+      "right": "ArrowRight",
+      "jump": "ArrowUp",
+      "lock": "ArrowDown",
+      "switch": "Control",
+      "rewind": "Shift",
+      "gate": "Enter"
+    },
+    "swapKeyboardOwnership": "Space",
+    "returnToLevelSelect": "Escape",
+    "menuConfirm": [
+      "Enter",
+      "Space",
+      "MouseLeft"
+    ],
+    "completionConfirm": [
+      "Space",
+      "Enter",
+      "ArrowUp"
+    ],
+    "completionRestart": "KeyR",
+    "menuMove": [
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown"
+    ]
+  },
+  "gamepad": {
+    "oneSharedController": {
+      "white": {
+        "horizontalAxis": 0,
+        "jumpButton": 4,
+        "lockButton": 6,
+        "switchButton": 10,
+        "rewindButton": 14,
+        "gateButton": 12
+      },
+      "red": {
+        "horizontalAxis": 2,
+        "jumpButton": 5,
+        "lockButton": 7,
+        "switchButton": 11,
+        "rewindButton": 2,
+        "gateButton": 3
+      }
+    },
+    "oneControllerEach": {
+      "horizontalAxes": [
+        0,
+        2
+      ],
+      "jumpButton": 0,
+      "lockButtons": [
+        5,
+        7
+      ],
+      "switchButtons": [
+        4,
+        6
+      ],
+      "rewindButton": 1,
+      "gateButton": 3
+    },
+    "axisThreshold": 0.5,
+    "returnToLevelSelectButton": 8,
+    "menuConfirmButtons": [
+      0,
+      9,
+      2
+    ],
+    "completionConfirmButtons": [
+      0,
+      2
+    ]
+  },
+  "capabilities": {
+    "lockEnabledByDefault": true,
+    "lockDisabledInitiallyRoomIds": [
+      3,
+      4,
+      5
+    ],
+    "lockTutorialRoomId": 5,
+    "lockTutorialUnlock": "objTriggerLockTut collision per player",
+    "rewindFirstRoomId": 8,
+    "rewindFirstCampaignIndex": 5,
+    "switchFirstRoomId": 12,
+    "switchFirstCampaignIndex": 9
+  },
+  "rewind": {
+    "held": true,
+    "startFramesPerTick": 2,
+    "accelerationPerTick": 0.01,
+    "inactiveDecelerationPerTick": 0.1,
+    "minFramesPerTick": 2,
+    "timeAdvancesOnlyWhenAnythingMoves": true,
+    "requiresBothPlayers": false
+  },
+  "screenSwitch": {
+    "requiresBothSwitchKeys": true,
+    "requiresBothGrounded": true,
+    "requiresDifferentPanes": true,
+    "rejectOnViewBorder": true,
+    "requiresBothCapability": true
+  },
+  "fade": {
+    "stepPerFrame": 0.05,
+    "incomingStart": 1,
+    "incomingDirection": -1,
+    "outgoingStart": 0,
+    "outgoingDirection": 1,
+    "blackAlpha": "fade drawn before increment; clamp for canvas",
+    "headSlideX": "-1009 + 1009 * clamp(fade,0,1)",
+    "rightHeadX": "1920 + 1009 * (1-clamp(fade,0,1))",
+    "rightHeadScaleX": -1,
+    "genericSprite": "sprMinoPleb",
+    "successSprite": "sprMinoPleb2",
+    "successAlsoDrawGenericSprite": true,
+    "headWidthForSlide": 1009,
+    "finishedSoundAt": 1.1,
+    "finishedHoldAt": 1.2,
+    "menuRoomChangeAt": 1.9,
+    "finishedContinueAt": 2,
+    "completionDestinationDefault": "levelSelect",
+    "intro1AutoAdvance": true,
+    "entryOverlay": false,
+    "completionHint": {
+      "sprite": "sprHUDControls",
+      "keyboardFrame": 29,
+      "gamepadFrame": 0,
+      "x": 990,
+      "y": 900,
+      "scale": 1.5
+    }
+  },
+  "introCamera": {
+    "view": 0,
+    "secondPaneVisible": false,
+    "initialWorldSize": [
+      1536,
+      864
+    ],
+    "viewport": [
+      1920,
+      1080
+    ],
+    "minimumWidthIntro1": 1920,
+    "minimumWidthIntro2": 2688,
+    "targetWidth": "max(max distance from midpoint to either player * 2.5,minimumWidth)",
+    "zoomLerp": 0.02,
+    "positionLerp": 0.05,
+    "verticalTargetRatio": 0.5,
+    "intro1AfterTriggerDestroyedZoomAddPerTick": 4,
+    "intro1FallTransitionAverageY": 4500,
+    "intro1CameraClampY": 4056,
+    "intro1FallMaxSpeed": 15,
+    "worldRooms": [
+      {
+        "roomId": 3,
+        "width": 4096,
+        "height": 4056
+      },
+      {
+        "roomId": 4,
+        "width": 4096,
+        "height": 2056
+      }
+    ]
+  },
+  "inputModes": [
+    {
+      "label": "shared#controller",
+      "methodsByNativeId": [
+        "1 controller",
+        "1 controller"
+      ],
+      "playerCount": 2,
+      "spriteFrame": 0
+    },
+    {
+      "label": "2#controllers",
+      "methodsByNativeId": [
+        "2 controllers",
+        "2 controllers"
+      ],
+      "playerCount": 2,
+      "spriteFrame": 1
+    },
+    {
+      "label": "controller#+#keyboard",
+      "methodsByNativeId": [
+        "keyboard",
+        "2 controllers"
+      ],
+      "playerCount": 2,
+      "spriteFrame": 2
+    },
+    {
+      "label": "keyboard#only",
+      "methodsByNativeId": [
+        "keyboard",
+        "keyboard"
+      ],
+      "playerCount": 2,
+      "spriteFrame": 3
+    }
+  ],
+  "controlsOverlay": {
+    "backdrop": {
+      "x1": 384,
+      "y1": 0,
+      "x2": 1536,
+      "y2": 1080,
+      "color": "black",
+      "alpha": 0.7
+    },
+    "items": [
+      {
+        "action": "jump",
+        "spriteFrame": 0,
+        "x": 640,
+        "y": 270
+      },
+      {
+        "action": "lock",
+        "spriteFrame": 1,
+        "x": 1280,
+        "y": 270
+      },
+      {
+        "action": "rewind",
+        "spriteFrame": 2,
+        "x": 640,
+        "y": 810
+      },
+      {
+        "action": "switch",
+        "spriteFrame": 3,
+        "x": 1280,
+        "y": 810
+      }
+    ],
+    "glyphOffsetsByPlayer": [
+      {
+        "nativeId": 1,
+        "x": -110,
+        "y": 170
+      },
+      {
+        "nativeId": 0,
+        "x": 110,
+        "y": 170
+      }
+    ],
+    "glyphFramesByMode": {
+      "keyboard": {
+        "white": {
+          "jump": 16,
+          "lock": 18,
+          "rewind": 28,
+          "switch": 24,
+          "gate": 30
+        },
+        "red": {
+          "jump": 20,
+          "lock": 21,
+          "rewind": 25,
+          "switch": 26,
+          "gate": 29
+        }
+      },
+      "1 controller": {
+        "white": {
+          "jump": 5,
+          "lock": 14,
+          "rewind": 9,
+          "switch": 6,
+          "gate": 11
+        },
+        "red": {
+          "jump": 4,
+          "lock": 15,
+          "rewind": 2,
+          "switch": 7,
+          "gate": 3
+        }
+      },
+      "2 controllers": {
+        "white": {
+          "jump": 0,
+          "lock": 4,
+          "rewind": 1,
+          "switch": 5,
+          "gate": 3
+        },
+        "red": {
+          "jump": 0,
+          "lock": 4,
+          "rewind": 1,
+          "switch": 5,
+          "gate": 3
+        }
+      }
+    }
+  },
+  "tutorialGlyphs": {
+    "sprite": "sprHUDControls",
+    "verticalOffset": -120,
+    "waveAmplitude": 5,
+    "waveRadiansPerTick": 0.05,
+    "jumpAlphaRise": 0.05,
+    "otherAlphaRise": 0.1,
+    "alphaFall": 0.1,
+    "gateVerticalOffset": -210
+  }
+}

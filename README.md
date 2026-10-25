@@ -1,6 +1,6 @@
 # DYO browser reconstruction
 
-A playable browser recreation of DYO's cooperative split-screen puzzles, using the original DYO artwork, the recovered 30-stage campaign geometry, and room-code online co-op.
+A playable browser recreation of DYO's cooperative split-screen puzzles, using original artwork, menu and map assets, 31 gameplay rooms behind the original 30 level-map nodes, and room-code online co-op.
 
 ## Run
 
@@ -22,33 +22,34 @@ Apply that migration once per local database. Hosted migrations are applied duri
 
 - Player 1: A/D move, W jump, S lock camera, F enter/leave a door.
 - Player 2: arrows move/jump/lock, Enter enters/leaves a door.
-- Space locks both cameras in local mode, or your own camera online.
-- Q rewinds about three seconds; E swaps cameras; R restarts; Escape pauses.
-- Tab changes which minotaur WASD controls for solo play. Touch controls include a character selector.
-- Online: choose Play online → Create a room → copy invite. Your friend opens the link and joins. Either movement key set controls your own character. Host remains the simulation authority and chooses stages; host menus pause both views.
+- Hold Q (white) or Shift (red) to rewind both characters. Hold E and Ctrl together to exchange screens when both players are grounded. These abilities unlock at their original campaign points.
+- Space swaps the two keyboard movement/action sets in local play; F and Enter remain the respective doorway controls. Escape returns to the level map with the original stone-head transition.
+- Arrows navigate menus; Space/Enter confirms. New saves begin with the original four input choices. Standard browser gamepads support shared controller, two controllers, or controller plus keyboard. Touch controls include a character selector.
+- Completion closes the stone heads and waits for Space/Enter/Up, then returns to the map. R restarts while this completion screen is waiting. The first introduction advances automatically to the second.
+- Online: choose Online co-op → Create a room → copy invite. Your friend opens the link and joins. Either movement key set controls your own character. Host remains the simulation authority and chooses levels; menus and transitions synchronize between browsers. Either player can confirm completion or return to the map.
 
 The server stores the latest state and inputs in a short-lived room. Independent action counters preserve jump/lock/door/restart requests between polls; motion counters retain short taps. Guest prediction is reconciled with host snapshots. Keep the host's browser tab active. This implementation uses an HTTPS relay, so Tailscale is optional and is not configured.
 
 ## Verification
 
 ```sh
-node --test tests/engine.test.mjs
+node --test tests/*.test.mjs
 npx tsc --noEmit
 npm run build
 ```
 
-The engine tests cover all campaign spawns, movement, jump trajectory, portal clipping, unequal-view scaling, gates, suspended blocks, and one-shot restarts. Two-browser tests additionally exercised room creation/join, remote movement, locking, stage changes, restart, third-player rejection, and token checks.
+The tests cover all 31 room spawns, movement, jump trajectory, portal clipping, unequal-view scaling, gates, suspended blocks, held rewind, cooperative screen switching, tutorial unlocks, shared intro cameras, the playable ending, map prerequisites, transition timings, and synthetic gamepad input. Two-browser checks additionally exercised menu flow, keyboard swapping, room creation/join, remote movement, locking, level changes, completion confirmation, map return, third-player rejection, and token checks. Physical gamepads have not been tested.
 
-Read [REVERSE_ENGINEERING.md](REVERSE_ENGINEERING.md) for provenance and fidelity limits. This is an independent reconstruction, not an official DYO release. The original DYO artwork is credited to Team DYO. The original game executable, music recordings, and recovered source code are not served by this site.
+Read [REVERSE_ENGINEERING.md](REVERSE_ENGINEERING.md) for provenance and fidelity limits. This is an independent reconstruction, not an official DYO release. Original artwork, interface, music and sound effects are credited to Team DYO. The original executable and recovered source code are not served by this site.
 
 ## Original artwork
 
-`public/game/assets/manifest.json` describes 821 original PNG sprite frames from 131 sprites, packed losslessly into 12 atlases. Sprite origins, all five themes, native scenery placement, character animation timing, and architectural edge selection come from the analyzed release. Every packed frame was compared pixel for pixel against the exported PNG. The original EBGaramond font is accompanied by its SIL license.
+`public/game/assets/manifest.json` describes 900 original PNG sprite frames from 155 sprites, packed losslessly into 18 atlases. This includes the original title and completion heads, input-selection tiles, scrolling level map, number glyphs, control panels, and playable credits artwork. The original input background is included separately. Sprite origins, all five themes, native scenery placement, character animation timing, and architectural edge selection come from the analyzed release. Every packed frame was compared pixel for pixel against the exported PNG. The original EBGaramond font is accompanied by its SIL license. Selected original sound effects and title/map music are AAC transcodes of the recovered audio.
 
 To regenerate the atlases from UndertaleModTool sprite exports (Pillow required):
 
 ```sh
-python scripts/pack-dyo-assets.py /path/to/export /path/to/output
+python scripts/pack-dyo-assets.py /path/to/export /path/to/output --include-ui
 ```
 
 The export directory must contain `metadata.json` with sprite dimensions/origins and a `Sprites/` folder of numbered PNG frames. Pack into a research directory, then copy the content-addressed atlases and manifest into `public/game/assets/`. `render-map.json` records the recovered visual mappings. Original artwork remains Team DYO's work; this reconstruction does not provide a new license to those assets.

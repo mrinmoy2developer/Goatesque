@@ -27,13 +27,13 @@ export class Renderer {
   const result={map,wall,background,wallPattern:this.ctx.createPattern(wall,'repeat'),backgroundPattern:this.ctx.createPattern(background,'repeat')};this.themeCache.set(id,result);return result;
  }
  prepare(engine){
-  if(this.levelId!==engine.level.id){this.levelId=engine.level.id;this.animations=[{},{}];this.gateFrames.clear();}
+  if(this.levelId!==engine.level.id||this.serial!==engine.serial){this.levelId=engine.level.id;this.serial=engine.serial;this.animations=[{},{}];this.gateFrames.clear();}
   this.playerFrames=engine.players.map((p,i)=>{
    const other=engine.players[1-i];const carrying=other.gate<0&&Math.abs(other.x-p.x)<26*(other.scale+p.scale)&&Math.abs(other.y+47*other.scale-p.y+47*p.scale)<4;
    let action=!p.ground?(p.vy>0?'fall':'jump'):carrying?(Math.abs(p.vx)>1?'carryWalk':'carry'):(p.pushFrames>0&&Math.abs(p.vx)<1?'push':Math.abs(p.vx)>1?'walk':'idle');
-   const state=this.animations[i];if(state.action!==action||engine.tick<(state.tick||0)){state.phase=0;state.action=action;state.tick=engine.tick;}
+   const state=this.animations[i];if(state.action!==action){state.phase=0;state.action=action;state.tick=engine.tick;}
    const speed=action==='walk'||action==='carryWalk'?.15/10.2*Math.abs(p.vx/p.scale):action==='push'?.15:i===0?.055:.05;
-   state.phase=(state.phase||0)+Math.max(0,engine.tick-(state.tick||0))*speed;state.tick=engine.tick;
+   state.phase=(state.phase||0)+(engine.tick-(state.tick||0))*speed;state.tick=engine.tick;
    return {sprite:this.assets.renderMap.players[i][action].name,frame:state.phase};
   });
   const native=this.assets.renderMap.nativeScenes.find(scene=>scene.id===engine.level.id);
@@ -53,27 +53,31 @@ export class Renderer {
   if(cv.width!==Math.round(width*dpr)||cv.height!==Math.round(height*dpr)){cv.width=Math.round(width*dpr);cv.height=Math.round(height*dpr);}
   c.setTransform(cv.width/1920,0,0,cv.height/1080,0,0);c.imageSmoothingEnabled=true;c.fillStyle='#161b1a';c.fillRect(0,0,1920,1080);
   this.currentTheme=this.theme(engine.level.tileset);this.prepare(engine);
-  for(let view=0;view<2;view++){
-   const camera=engine.cameras[view];c.save();c.beginPath();c.rect(view*960,0,960,1080);c.clip();
-   c.translate(view*960,0);c.scale(960/camera.w,1080/camera.h);c.translate(-camera.x,-camera.y);
+  const shared=!!engine.sharedCamera;
+  for(let view=0;view<(shared?1:2);view++){
+   const camera=shared?engine.sharedCamera:engine.cameras[view],width=shared?1920:960,left=shared?0:view*960;c.save();c.beginPath();c.rect(left,0,width,1080);c.clip();
+   c.translate(left,0);c.scale(width/camera.w,1080/camera.h);c.translate(-camera.x,-camera.y);
    this.background(camera);
    for(let i=0;i<engine.level.gates.length;i++)this.gate(engine,engine.level.gates[i],i,view);
    for(const item of this.decor)if(item.depth>5)this.drawDecor(item,camera,engine.tick);
+   if(engine.ending){const half=this.assets.renderMap.ending[view===0?'leftHalf':'rightHalf'],shake=(engine.ending.shake?.[view]||0)*Math.sin(engine.tick*2)*.15;this.sprite(half.spriteName,engine.ending.frames[view],half.x+shake,half.y,2,2);}
    this.terrain(engine,camera,view);
    for(const item of this.decor)if(item.depth<=5)this.drawDecor(item,camera,engine.tick);
    for(const block of engine.blocks){this.sprite('sprBlock',0,block.x,block.y,block.w/320,block.h/320);if(block.vx){c.save();c.globalCompositeOperation='lighter';this.sprite('sprBlockGlow',2,block.x,block.y,Math.sign(block.vx)*block.w/320,block.h/320,0,.8);c.restore();}}
    const order=[0,1].sort((a,b)=>engine.players[a].y-engine.players[b].y);
    for(const i of order){const p=engine.players[i];if(p.gate>=0)continue;
-    this.player(p,i,p.view!==view);
-    if(engine.cameras.every(c=>c.locked)&&p.view!==view){const from=engine.cameras[p.view],to=camera,ratio=to.h/from.h;const x=p.view===0?to.x+(p.x-from.x-from.w)*ratio:to.x+to.w+(p.x-from.x)*ratio;const y=to.y+(p.y-from.y)*ratio;this.player({...p,x,y,scale:p.scale*ratio},i,false);}
+    this.player(p,i,!shared&&p.view!==view);
+    if(!shared&&engine.cameras.every(c=>c.locked)&&p.view!==view){const from=engine.cameras[p.view],to=camera,ratio=to.h/from.h;const x=p.view===0?to.x+(p.x-from.x-from.w)*ratio:to.x+to.w+(p.x-from.x)*ratio;const y=to.y+(p.y-from.y)*ratio;this.player({...p,x,y,scale:p.scale*ratio},i,false);}
+    if(shared||p.view===view)this.tutorial(engine,p,i);
    }
    // Original fog and torch light bitmaps soften the room without tinting the art.
    c.save();c.globalCompositeOperation='screen';this.sprite('sprFog',0,camera.x-100+Math.sin(this.time*.04)*70,camera.y-100,Math.max(camera.w,camera.h)/500,Math.max(camera.w,camera.h)/500,0,.035);c.restore();
    c.restore();
-   if(camera.locked)this.sprite('sprLockFrame3',0,view*960,0,1,1,0,.7);
+   if(!shared&&camera.locked)this.sprite('sprLockFrame3',0,view*960,0,1,1,0,.7);
   }
   const joined=engine.cameras.every(c=>c.locked);
-  c.save();if(!joined)c.filter='brightness(0)';this.sprite('sprLockCrack',joined?1:0,954,0,1,1);c.restore();
+  if(!shared){c.save();if(!joined)c.filter='brightness(0)';this.sprite('sprLockCrack',joined?1:0,954,0,1,1);c.restore();}
+  if(engine.ending?.alpha){c.save();c.fillStyle='#fff';c.globalAlpha=engine.ending.alpha;c.fillRect(0,0,1920,1080);c.restore();}
  }
  background(camera){
   const c=this.ctx;c.save();c.translate(camera.x*.2,camera.y*.2);c.fillStyle=this.currentTheme.backgroundPattern;c.fillRect(camera.x*.8-200,camera.y*.8-200,camera.w+400,camera.h+400);c.restore();
@@ -122,5 +126,15 @@ export class Renderer {
  player(p,index,ghost){
   const c=this.ctx,frame=this.playerFrames[index];c.save();if(ghost)c.globalAlpha*=.5;
   this.sprite(frame.sprite,frame.frame,p.x,p.y,p.face*p.scale,p.scale);c.restore();
+ }
+ tutorial(engine,p,index){
+  const kind=engine.index<2&&p.lastJump===0?'jump':engine.index===2&&p.canLock&&p.lastLock===0?'lock':engine.index===5&&!this.preferences?.rewound?'rewind':engine.index===9?'switch':null;
+  if(kind){const prefs=this.preferences||{},mode=prefs.inputMode??3,methods=this.assets.controls.inputModes[mode].methodsByNativeId;
+   const method=prefs.online?'keyboard':methods[index===0?1:0];const key=prefs.keyboardSwap?1-index:index;
+   const frame=this.assets.controls.controlsOverlay.glyphFramesByMode[method][key===0?'white':'red'][kind];
+   this.sprite('sprHUDControls',frame,p.x,p.y-120*p.scale+Math.sin(engine.tick*.05)*5,p.scale,p.scale,0,.7);
+  }
+  const gate=engine.level.gates.find(g=>Math.abs(g.x-p.x)<100&&Math.abs(g.y-p.y-47*p.scale)<85);
+  if(gate)this.sprite('sprHUDControls',index===0?30:29,p.x,p.y-210*p.scale,p.scale,p.scale,0,.8);
  }
 }
