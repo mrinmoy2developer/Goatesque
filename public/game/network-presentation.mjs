@@ -14,7 +14,7 @@ export class NetworkPresentation {
  }
  present(engine,dt){
   if(this.key!==signature(engine))this.reset(engine);
-  const visual=Object.create(engine),decay=Math.exp(-Math.max(0,Math.min(dt,100))/90);
+  const visual=Object.create(engine),decay=Math.exp(-Math.max(0,Math.min(dt,100))/120);
   for(const kind of ['players','cameras','blocks'])visual[kind]=engine[kind].map((p,i)=>{const o=this.offsets[kind][i];o.x*=decay;o.y*=decay;if(Math.abs(o.x)<.001)o.x=0;if(Math.abs(o.y)<.001)o.y=0;return {...p,x:p.x+o.x,y:p.y+o.y};});
   return visual;
  }
