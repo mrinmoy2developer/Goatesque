@@ -20,7 +20,7 @@ export async function boot(){
  audio.sounds=ui.sound;audio.music=ui.music;
  ui.touch=read('goatesque-touch',matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0);document.documentElement.dataset.touch=ui.touch?'on':'off';$('touch-toggle').setAttribute('aria-pressed',String(ui.touch));
  const native=new NativeInterface($('world'),assets,$('native-buttons'),action),inputs=[emptyInput(),emptyInput()],keys=new Set(),cleanup=[];
- let mode='local',room=null,connection=null,remote=emptyInput(),transition=null,transitionId=0,keyboardSwap=false,touchPlayer=0,last=0,accumulator=0,frame=0,raf=0,toastTimer,remotePaused=false,remoteMenu=0,remoteConfirm=0,remoteSession=null,inputReturn='play',seenRewind=false,lastRevision=-1,lastInputSignature='',packet=0,lastRemotePacket=-1,lastHostState=null,lastHostAt=0,lastHostFrame=-1,lastHostProgress=0,protocolWarning=false,loadCounter=0,serverLoad=null,lastServerEvent=0;
+ let mode='local',room=null,connection=null,remote=emptyInput(),transition=null,transitionId=0,keyboardSwap=false,touchPlayer=0,last=0,accumulator=0,frame=0,raf=0,toastTimer,remotePaused=false,remoteMenu=0,remoteConfirm=0,remoteSession=null,inputReturn='play',seenRewind=false,lastRevision=-1,lastInputSignature='',packet=0,lastRemotePacket=-1,lastHostState=null,lastHostAt=0,lastHostFrame=-1,lastHostProgress=0,protocolWarning=false,loadCounter=0,serverLoad=null,lastServerEvent=0,lastInputAck=-1,lastInputStream=-1,lastInputProgress=0;
  const guestCommands=new GuestCommands();
  const touch=[{left:false,right:false,rewind:false,switchHeld:false},{left:false,right:false,rewind:false,switchHeld:false}];
  const on=(target,type,fn,options)=>{target.addEventListener(type,fn,options);cleanup.push(()=>target.removeEventListener(type,fn,options));};
@@ -68,7 +68,7 @@ export async function boot(){
  async function enterRoom(kind){
   const b=$(kind==='create'?'create-room':'join-room');b.disabled=true;$('room-error').textContent='';
   try{
-   const session=await roomRequest({action:kind,code:$('room-code').value.toUpperCase().trim()});connection?.stop();room=session;mode=session.role;ui.guest=mode==='guest';inputs.forEach(i=>Object.assign(i,emptyInput()));remote=emptyInput();remoteMenu=remoteConfirm=0;guestCommands.player=mine();guestCommands.reset(-1);loadCounter=0;serverLoad=null;lastServerEvent=0;lastHostState=null;lastHostFrame=-1;lastHostProgress=0;ui.networkWaiting=mode==='guest';packet=0;lastRemotePacket=-1;remoteSession=null;protocolWarning=false;
+   const session=await roomRequest({action:kind,code:$('room-code').value.toUpperCase().trim()});connection?.stop();room=session;mode=session.role;ui.guest=mode==='guest';inputs.forEach(i=>Object.assign(i,emptyInput()));remote=emptyInput();remoteMenu=remoteConfirm=0;guestCommands.player=mine();guestCommands.reset(-1);loadCounter=0;serverLoad=null;lastServerEvent=0;lastHostState=null;lastHostFrame=-1;lastHostProgress=0;lastInputAck=-1;lastInputStream=-1;lastInputProgress=0;ui.networkWaiting=mode==='guest';packet=0;lastRemotePacket=-1;remoteSession=null;protocolWarning=false;
    lastRevision=-1;lastInputSignature='';
    if(mode==='host'){ui.inputMode=3;transition=null;openScene({screen:'map',selected:Math.max(0,selectedForLevel(engine.index))});}
    connection=new RoomConnection(session,data=>{
@@ -80,6 +80,7 @@ export async function boot(){
      if(mode==='host'&&serverLoad&&(data.state.loadAck||0)<serverLoad.id)return;
      const before=renderer.networkPresentation.capture(engine);
      lastHostState=data.state;lastHostAt=performance.now();if(data.state.hostFrame!==lastHostFrame){lastHostFrame=data.state.hostFrame;lastHostProgress=lastHostAt;}
+     if(data.state.guestStream!==lastInputStream||(data.state.guestAck||0)>lastInputAck){lastInputStream=data.state.guestStream;lastInputAck=data.state.guestAck||0;lastInputProgress=lastHostAt;}
      engine.restore(data.state);const wasPaused=remotePaused;remotePaused=!!data.state.paused;
      if(!wasPaused&&remotePaused&&guestCommands.pending.length){guestCommands.cancel();clearHeld();}
      if(mode==='guest')receivePresentation(data.state.presentation);
@@ -87,6 +88,7 @@ export async function boot(){
      if(ui.screen==='play'&&!busy()&&!remotePaused)guestCommands.replay(engine);
      engine.events=[];for(const record of data.state.events||[]){if(record.seq<=lastServerEvent)continue;lastServerEvent=record.seq;if(record.epoch===engine.serial)engine.events.push(record.event);}processEvents();
      renderer.networkPresentation.reconcile(before,engine);
+     renderer.networkPresentation.observe(engine,data.state,mine());
     }
    },status=>{
     $('connection-label').textContent=(ui.networkWaiting?'Synchronizing with server…':null)||status.error||(status.connected?`Connected · ${status.latency} ms`:'Waiting for your friend');$('connection-dot').classList.toggle('connected',status.connected);
@@ -139,7 +141,7 @@ export async function boot(){
   if(e.type==='ending-complete'&&authority()){markCompleted(engine.index);transition=null;switchScene({screen:'title'});ui.whiteFlash=1;}
  }}
  function animate(now){
-  if(mode!=='local'&&lastHostState&&!ui.networkWaiting&&(now-lastHostAt>2200||ui.screen==='play'&&!remotePaused&&now-lastHostProgress>1500)){guestCommands.cancel();ui.networkWaiting=true;engine.restore(lastHostState);renderer.networkPresentation.reset(engine);connection?.requestSoon();}
+  if(mode!=='local'&&lastHostState&&!ui.networkWaiting&&(now-lastHostAt>2200||guestCommands.pending.length>0&&now-lastInputProgress>2200||ui.screen==='play'&&!remotePaused&&now-lastHostProgress>1500)){guestCommands.cancel();ui.networkWaiting=true;engine.restore(lastHostState);renderer.networkPresentation.reset(engine);connection?.requestSoon();}
   const dt=last?Math.min(100,now-last):16.667;last=now;accumulator+=dt;const gamepad=pads.poll(ui.inputMode,mine(),mode!=='local');ui.gamepadConnected=gamepad.connected>0;
   if(gamepad.confirm)confirm();if(gamepad.back)back();for(const direction of gamepad.navigation)if(ui.screen!=='play'&&!busy()&&mode!=='guest')native.navigate(direction,ui);
   for(let i=0;i<2;i++){
@@ -156,7 +158,7 @@ export async function boot(){
   let fixed=0;while(accumulator>=1000/60){fixed++;frame++;accumulator-=1000/60;
    if(ui.screen==='play'&&!busy()&&!(mode!=='local'&&remotePaused)){
     if(mode!=='local'){
-     const command=guestCommands.push(inputs[mine()],engine.serial);
+     if(!guestCommands.pending.length)lastInputProgress=now;const command=guestCommands.push(inputs[mine()],engine.serial);
      if(command)engine.predictPlayer(mine(),command);else{guestCommands.cancel();ui.networkWaiting=true;if(lastHostState)engine.restore(lastHostState);connection?.requestSoon();}
     }else{engine.step(inputs);processEvents();}
     if(engine.rewinding)seenRewind=true;
@@ -191,5 +193,5 @@ export async function boot(){
  const fullscreenChange=()=>{const active=!!(document.fullscreenElement||document.webkitFullscreenElement);$('fullscreen-button').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen-button').setAttribute('aria-pressed',String(active));};on(document,'fullscreenchange',fullscreenChange);on(document,'webkitfullscreenchange',fullscreenChange);
  const invite=new URLSearchParams(location.hash.slice(1));if(invite.has('room')){$('room-code').value=invite.get('room');$('online-dialog').hidden=false;}
  $('loading').hidden=true;raf=requestAnimationFrame(animate);
- window.goatesque={engine,renderer,inputs,ui,native,assets,audio,net:{guestCommands,get server(){return lastHostState;},protocol:INPUT_PROTOCOL},get transition(){return transition;},get mode(){return mode;},get room(){return room;},loadLevel,playLocal,startLevel,action,enterRoom,confirmCompletion,requestMap,destroy(){cancelAnimationFrame(raf);connection?.stop();audio.destroy();cleanup.forEach(fn=>fn());clearTimeout(toastTimer);}};
+ window.goatesque={engine,renderer,inputs,ui,native,assets,audio,net:{guestCommands,get server(){return lastHostState;},get connection(){return connection;},protocol:INPUT_PROTOCOL},get transition(){return transition;},get mode(){return mode;},get room(){return room;},loadLevel,playLocal,startLevel,action,enterRoom,confirmCompletion,requestMap,destroy(){cancelAnimationFrame(raf);connection?.stop();audio.destroy();cleanup.forEach(fn=>fn());clearTimeout(toastTimer);}};
 }

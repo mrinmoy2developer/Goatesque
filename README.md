@@ -6,14 +6,14 @@ Goatesque is a playable browser recreation of DYO's cooperative split-screen puz
 
 **Goatesque** is live at `https://goatesque.mrinmoy.org`. The original source artwork and Team DYO credit remain attributed to their creators.
 
-Build a dependency-free deployment on your Mac:
+Build the standalone deployment on your Mac:
 
 ```sh
 node scripts/build-standalone.mjs
 node --max-old-space-size=40 outputs/goatesque/server.mjs --public outputs/goatesque/public --port 8792
 ```
 
-The standalone build uses the same page, styles, engine and assets as the framework build. Ludia runs the dependency-free Node 16+ authoritative simulation, with nginx serving static files and proxying `/api/rooms` and `/api/health`. Up to four rooms live in memory and disappear on service restart. No database is needed there. The user service has `MemoryHigh=80M`, `MemoryMax=96M`, no swap allocation, and `CPUQuota=25%` (one quarter of a CPU).
+The standalone build uses the same page, styles, engine and assets as the framework build. Ludia runs the Node 16+ authoritative simulation (with a pinned, bundled MIT-licensed WebSocket library), with nginx serving static files and proxying `/api/rooms` and `/api/health`. Up to four rooms live in memory and disappear on service restart. No database is needed there. The user service has `MemoryHigh=80M`, `MemoryMax=96M`, no swap allocation, and `CPUQuota=25%` (one quarter of a CPU).
 
 See [deploy/ludia/README.md](deploy/ludia/README.md) for DNS, activation and service commands. Build output is under ignored `outputs/goatesque/`; original research and recovered executable/source are excluded.
 
@@ -47,7 +47,17 @@ Apply that migration once per local database. Hosted migrations are applied duri
 
 Ludia owns both players, shared physics, time, gates and world events at 60 Hz. Both browsers predict only their own character, then restore server snapshots and replay every unacknowledged input command. Player command streams, action counters and acknowledgments remain separate. If an input frame has not arrived, that player's body and camera wait; the server never inserts unacknowledged gravity or friction steps. After a jitter spike, the server drains up to four body commands per player per tick until the queue is small again. Shared animation effects still advance once per server tick; shared-action changes remain ordered. The room creator retains control of menus and level selection.
 
-Synchronization targets 20 Hz with at most three HTTP requests in flight per browser. Old packets and responses are rejected; cancelled streams cannot replay stale movement. World simulation continues if the host's rendering pauses while its connection remains live. Extended connection loss pauses the room; abandoned host rooms expire after two minutes. Protocol 3 requires both browsers to refresh and create a new room after upgrading. HTTPS is used; Tailscale is optional and is not configured. Visual correction smoothing remains separate from physics.
+WebSockets are the primary transport: inputs and 30 Hz state updates share one persistent authenticated connection. If the proxy cannot upgrade WebSockets, a persistent server-sent event stream delivers state at 30 Hz while compact POSTs carry inputs. Ordinary HTTP polling remains a final fallback. Tokens are sent in message/request bodies, never URL parameters. Messages and buffered writes are bounded; snapshots coalesce for slow connections. No extra public application port is opened.
+
+A four-frame input buffer (at most 80 ms to prime) absorbs short gaps. The other player's body and camera render from a 100 ms snapshot buffer with at most 60 ms extrapolation. Local movement remains predicted immediately. Teleports, gates, rewind and level changes reset interpolation. Input acknowledgement progress is monitored separately from state delivery, so a stalled uplink cannot keep replaying abandoned movement while the downlink remains alive.
+
+The existing nginx configuration needs a one-time root-owned WebSocket route update. After reviewing `deploy/ludia/enable-websocket.py`, run:
+
+```sh
+ssh -t ludia 'sudo python3 /home/mrinmoy/goatesque/current/enable-websocket.py'
+```
+
+The script changes only Goatesque's virtual host, preserves TLS settings, backs up the previous file, checks nginx, reloads it, and restores the original on failure. Both browsers should refresh and create a new room after updating. Tailscale is optional and is not configured.
 
 ## Verification
 

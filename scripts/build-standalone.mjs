@@ -13,5 +13,7 @@ if(/[{}]/.test(main))throw Error('Unexpected JSX expression in the standalone UI
 const html=`<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Goatesque · Two worlds. One way out.</title><meta name="description" content="Explore a shifting labyrinth together in Goatesque, a local and online co-op puzzle platformer."><meta name="theme-color" content="#101412"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Goatesque"><link rel="manifest" href="/game/app-manifest.json"><link rel="apple-touch-icon" href="/game/icons/goatesque-180.png?v=4"><link rel="icon" href="/favicon.svg?v=4"><link rel="stylesheet" href="/style.css"></head><body>${main}<script type="module" src="/game/start.mjs"></script></body></html>\n`;
 await writeFile(resolve(output,'public/index.html'),html);
 await writeFile(resolve(output,'public/style.css'),(await readFile(resolve(root,'app/globals.css'),'utf8')).replace('@import "tailwindcss";',''));
-for(const file of ['server.mjs','relay.py','goatesque.service','goatesque.nginx.conf','activate-public.sh','update-static.py'])await cp(resolve(root,'deploy/ludia',file),resolve(output,file));
+for(const file of ['server.mjs','relay.py','goatesque.service','goatesque.nginx.conf','activate-public.sh','enable-websocket.py','update-static.py'])await cp(resolve(root,'deploy/ludia',file),resolve(output,file));
 console.log(output);
+
+await cp(resolve(root,'deploy/ludia/vendor'),resolve(output,'vendor'),{recursive:true});

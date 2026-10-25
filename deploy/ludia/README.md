@@ -36,7 +36,7 @@ ssh -N -L 18792:127.0.0.1:8792 ludia
 
 Then open `http://localhost:18792` on your Mac. This is a private test route and does not expose8792 publicly.
 
-The dependency-free Node 16+ service is capped at 96 MB RAM, 80 MB soft pressure, 25% of one CPU and 32 tasks. Node's heap is limited to 40 MB. It accepts at most four rooms and 32 HTTP connections; abandoned host rooms expire after two minutes. Credentials and state bodies are not journaled. Ludia simulates shared worlds at 60 Hz; each browser renders and predicts its own character. The original Python relay is retained only for rollback to the matching older client.
+The Node 16+ service is capped at 96 MB RAM, 80 MB soft pressure, 25% of one CPU and 32 tasks. Node's heap is limited to 40 MB. It accepts at most four rooms and 32 HTTP connections; abandoned host rooms expire after two minutes. Credentials and state bodies are not journaled. Ludia simulates shared worlds at 60 Hz; each browser renders and predicts its own character. The original Python relay is retained only for rollback to the matching older client.
 
 Tests:
 
@@ -44,3 +44,5 @@ Tests:
 node --test tests/*.test.mjs
 python3 -m unittest discover -s tests -p 'test_*.py'
 ```
+
+WebSockets use `/api/rooms/socket` on the same domain. The installed, narrowly scoped activation script is `~/goatesque/current/enable-websocket.py`; run it with sudo using the command in the main README. Its route was tested through an unprivileged nginx instance before requesting root activation. Until activated, clients automatically use the persistent state-stream fallback through the existing `/api/rooms` route. WebRTC and TURN are not deployed.
