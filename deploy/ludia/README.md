@@ -28,7 +28,7 @@ ssh ludia 'systemctl --user start goatesque.service'
 ssh ludia 'journalctl --user -u goatesque.service -n 40 --no-pager'
 ```
 
-Verify `curl https://goatesque.mrinmoy.org/api/health` returns `{"ok":true,"game":"Goatesque"}`. An active relay remains available through SSH forwarding before DNS/nginx activation:
+Verify `curl https://goatesque.mrinmoy.org/api/health` returns `{"ok":true,"game":"Goatesque","protocol":2}`. An active relay remains available through SSH forwarding before DNS/nginx activation:
 
 ```sh
 ssh -N -L 18792:127.0.0.1:8792 ludia
