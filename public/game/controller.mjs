@@ -6,6 +6,7 @@ import {NativeInterface} from './interface.mjs';
 import {HeadTransition,nodeUnlocked} from './presentation.mjs';
 import {Gamepads} from './gamepads.mjs';
 import {OriginalAudio} from './audio.mjs';
+import {toggleFullscreen} from './display.mjs';
 const $=id=>document.getElementById(id);
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)??localStorage.getItem(key.replace('goatesque-','dyo-')))??fallback;}catch{return fallback;}};
 const save=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));}catch{}};
@@ -16,13 +17,14 @@ export async function boot(){
  const engine=new Engine(levels),renderer=new Renderer($('world'),assets),pads=new Gamepads(assets.controls),audio=new OriginalAudio(assets.audioManifest);
  const ui={screen:'title',selected:0,inputSelection:0,inputMode:read('goatesque-input-mode',3),completed:read('goatesque-completed',[]),overlay:null,gamepadConnected:false,guest:false,sound:read('goatesque-sound',true),music:read('goatesque-music',true)};
  audio.sounds=ui.sound;audio.music=ui.music;
+ ui.touch=read('goatesque-touch',matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0);document.documentElement.dataset.touch=ui.touch?'on':'off';$('touch-toggle').setAttribute('aria-pressed',String(ui.touch));
  const native=new NativeInterface($('world'),assets,$('native-buttons'),action),inputs=[emptyInput(),emptyInput()],keys=new Set(),cleanup=[];
  let mode='local',room=null,connection=null,remote=emptyInput(),hostInput=emptyInput(),transition=null,transitionId=0,keyboardSwap=false,touchPlayer=0,last=0,accumulator=0,frame=0,raf=0,toastTimer,remotePaused=false,remoteMenu=0,remoteConfirm=0,remoteSession=null,history=[],inputReturn='play',seenRewind=false;
  const motion={left:0,right:0},touch=[{left:false,right:false,rewind:false,switchHeld:false},{left:false,right:false,rewind:false,switchHeld:false}];
  const on=(target,type,fn,options)=>{target.addEventListener(type,fn,options);cleanup.push(()=>target.removeEventListener(type,fn,options));};
  const authority=()=>mode!=='guest';const mine=()=>mode==='guest'?1:0;const busy=()=>!!transition||!!ui.overlay||!$('online-dialog').hidden;
  function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3000);}
- function clearHeld(){keys.clear();for(const i of inputs){i.left=false;i.right=false;i.rewind=false;i.switchHeld=false;}for(const i of touch)Object.assign(i,{left:false,right:false,rewind:false,switchHeld:false});}
+ function clearHeld(){keys.clear();for(const i of inputs){i.left=false;i.right=false;i.rewind=false;i.switchHeld=false;}for(const i of touch)Object.assign(i,{left:false,right:false,rewind:false,switchHeld:false});for(const button of document.querySelectorAll('#touch-controls [data-touch]'))button.classList.remove('pressed');}
  function selectedForLevel(index){return assets.uiLayout.map.nodes.findIndex(n=>n.alsoIncludesEngineIndices.includes(index));}
  function markCompleted(index){if(!ui.completed.includes(index)){ui.completed.push(index);save('goatesque-completed',ui.completed);}}
  function loadLevel(index){engine.load(index);for(let i=0;i<2;i++){const input=mode==='host'&&i===1?remote:inputs[i];Object.assign(engine.players[i],{lastJump:input.jump||0,lastLock:input.lock||0,lastRestart:input.restart||0,lastGate:input.gate||0,lastSwitch:input.switch||0});}history=[];seenRewind=false;clearHeld();}
@@ -53,7 +55,7 @@ export async function boot(){
   if(name==='sound'){audio.sounds=!audio.sounds;ui.sound=audio.sounds;save('goatesque-sound',ui.sound);return;}
   if(name==='music'){audio.toggleMusic();ui.music=audio.music;save('goatesque-music',ui.music);return;}
   if(name==='credits'){ui.selected='credits';ui.overlay='credits';return;}
-  if(name==='fullscreen'){if(document.fullscreenElement)document.exitFullscreen?.();else $('game-shell').requestFullscreen?.();}
+  if(name==='fullscreen')toggleFullscreen(toast);
  }
  function playLocal(){if(connection){connection.leave();connection=null;}room=null;mode='local';ui.guest=false;$('room-bar').hidden=true;ui.screen='play';transition=null;clearHeld();$('online-button').hidden=true;$('touch-controls').hidden=false;audio.setScene('play');$('world').focus();}
  function presentation(){return {screen:ui.screen,selected:ui.selected,inputSelection:ui.inputSelection,inputMode:ui.inputMode,completed:ui.completed,whiteFlash:ui.whiteFlash||0,transition:transition?.snapshot()||null};}
@@ -71,7 +73,7 @@ export async function boot(){
     else if(data.state?.players){
      const changed=engine.serial!==data.state.serial||engine.index!==data.state.index;engine.restore(data.state);hostInput=data.state.hostInput||emptyInput();remotePaused=!!data.state.paused;receivePresentation(data.state.presentation);
      if(changed)history=[];const ack=data.state.guestSeq||0;history=history.filter(h=>h.seq>ack).slice(-24);
-     if(ui.screen==='play'&&!busy()&&!remotePaused)for(const h of history)engine.step([hostInput,h]);engine.events.length=0;
+     if(ui.screen==='play'&&!busy()&&!remotePaused&&!data.state.rewinding&&!hostInput.rewind&&!inputs[1].rewind)for(const h of history)engine.step([hostInput,h]);engine.events.length=0;
     }
    },status=>{
     $('connection-label').textContent=status.error||(status.connected?`Connected · ${status.latency} ms`:'Waiting for your friend');$('connection-dot').classList.toggle('connected',status.connected);
@@ -118,8 +120,8 @@ export async function boot(){
   });
  }
  function processEvents(){for(const e of engine.events.splice(0)){
-  const sounds={lock:e.locked?'sdScreenLock':'sdScreenUnlock',jump:e.player===0?'sdJump':'sdJump2',land:'sdLand',gate:'sdGate',switch:'sdSwitch',denied:'sdScreenUnlockError'};if(sounds[e.type])audio.effect(sounds[e.type],e.type==='land'?.12:.35);
-  if(e.type==='win'){markCompleted(engine.index);const next=engine.index===0?{screen:'play',index:1}:{screen:'map',selected:Math.min(29,Math.max(0,selectedForLevel(engine.index)+1))};fadeTo(next,{completion:true,automatic:engine.index===0});}
+  const sounds={lock:e.locked?'sdScreenLock':'sdScreenUnlock',jump:e.player===0?'sdJump':'sdJump2',land:'sdLand',gate:'sdGate',switch:'sdSwitch',denied:'sdScreenUnlockError',break:'sdIntroBreak'};if(sounds[e.type])audio.effect(sounds[e.type],e.type==='land'?.12:.35);
+  if(e.type==='win'){markCompleted(engine.index);const next=engine.index===0?{screen:'play',index:1}:{screen:'map',selected:Math.min(29,Math.max(0,selectedForLevel(engine.index)+1))};fadeTo(next,{completion:engine.index!==0,automatic:engine.index===0});}
   if(e.type==='ending-complete'){markCompleted(engine.index);transition=null;switchScene({screen:'title'});ui.whiteFlash=1;}
  }}
  function animate(now){
@@ -140,11 +142,12 @@ export async function boot(){
     const peer={...remote};if(mode==='host')for(const direction of ['left','right']){peer[direction]=!!remote[direction]||(remote[direction+'Frames']||0)>motion[direction];if(peer[direction])motion[direction]++;}
     const pair=mode==='guest'?[hostInput,inputs[1]]:mode==='host'?[inputs[0],peer]:inputs;
     if(mode==='guest'){for(const d of ['left','right'])if(inputs[1][d])inputs[1][d+'Frames']=(inputs[1][d+'Frames']||0)+1;history.push({...inputs[1],seq:frame});if(history.length>120)history.shift();}
-    engine.step(pair);if(engine.rewinding)seenRewind=true;if(authority())processEvents();
+    if(mode!=='guest'||!engine.rewinding&&!hostInput.rewind&&!inputs[1].rewind)engine.step(pair);if(engine.rewinding)seenRewind=true;if(authority())processEvents();
    }
    if(transition){const before=transition.fade,result=transition.advance();if(transition.completion&&before<1.1&&transition.fade>=1.1)audio.effect('sdLevelSuccess');if(result?.type==='opened'){transition=null;}else if(result?.type==='change'&&authority()){openScene(result.target);}}
   }
   ui.whiteFlash=Math.max(0,(ui.whiteFlash||0)-fixed*.02);$('game-shell').dataset.screen=ui.screen;
+  ui.rewinding=ui.screen==='play'&&engine.rewinding;audio.setRewinding(ui.rewinding&&!busy());$('touch-player').hidden=mode!=='local';
   renderer.preferences={inputMode:ui.inputMode,keyboardSwap,online:mode!=='local',rewound:seenRewind};
   if(ui.screen==='play')renderer.render(engine,dt);
   native.render(ui,transition,dt);
@@ -156,16 +159,19 @@ export async function boot(){
   if(name==='online'){$('online-dialog').hidden=false;$('room-code').focus();clearHeld();}
   if(name==='close-online')$('online-dialog').hidden=true;
   if(name==='create')enterRoom('create');if(name==='join')enterRoom('join');if(name==='leave')leaveRoom();if(name==='map')requestMap();
+  if(name==='fullscreen')toggleFullscreen(toast);
+  if(name==='touch-toggle'){ui.touch=!ui.touch;save('goatesque-touch',ui.touch);document.documentElement.dataset.touch=ui.touch?'on':'off';button.setAttribute('aria-pressed',String(ui.touch));clearHeld();}
   if(name==='invite'&&room){const url=new URL(location.href);url.hash=`room=${room.code}`;navigator.clipboard?.writeText(url.href).then(()=>toast('Invite link copied.')).catch(()=>toast(`Room ${room.code}`));}
-  if(name==='touch-player'){touchPlayer=1-touchPlayer;$('touch-player').textContent=`Player ${touchPlayer+1}`;}
+  if(name==='touch-player'){touchPlayer=1-touchPlayer;$('touch-player').textContent=touchPlayer?'Red':'White';}
  });
  on($('world'),'click',()=>{if(ui.screen==='title'&&!busy())start();});
  on($('world'),'wheel',event=>{if(ui.screen==='map'&&!busy()){event.preventDefault();native.manualScroll=true;native.scroll=Math.max(0,Math.min(1820,native.scroll+event.deltaY*1920/$('world').clientWidth));}},{passive:false});
- for(const button of document.querySelectorAll('[data-touch]')){
-  let player=0;const name=button.dataset.touch;
-  on(button,'pointerdown',event=>{event.preventDefault();player=mode==='local'?touchPlayer:mine();button.setPointerCapture(event.pointerId);if(ui.screen!=='play'||busy())return;if(['left','right','rewind'].includes(name))touch[player][name]=true;else if(name==='switch'){touch[player].switchHeld=true;inputs[player].switch++;}else inputs[player][name]++;button.classList.add('pressed');});
-  const release=()=>{if(['left','right','rewind'].includes(name))touch[player][name]=false;if(name==='switch')touch[player].switchHeld=false;button.classList.remove('pressed');};on(button,'pointerup',release);on(button,'pointercancel',release);
+ for(const button of document.querySelectorAll('#touch-controls [data-touch]')){
+  const pointers=new Map(),name=button.dataset.touch;
+  on(button,'pointerdown',event=>{event.preventDefault();const player=mode==='local'?touchPlayer:mine();if(ui.screen!=='play'||busy())return;audio.unlock();if(name==='rewind'&&engine.level.rewindEnabled===false){toast('Rewind unlocks at the rewind tutorial. Hold Q, Shift or ↶ once it unlocks.');return;}if(name==='lock'&&!engine.players[player].canLock){toast('Camera locking unlocks at its tutorial.');return;}if(name==='switch'&&engine.level.switchEnabled===false){toast('Screen switching unlocks at its tutorial.');return;}button.setPointerCapture(event.pointerId);pointers.set(event.pointerId,player);if(['left','right','rewind'].includes(name))touch[player][name]=true;else if(name==='switch'){for(const i of mode==='local'?[0,1]:[player]){touch[i].switchHeld=true;inputs[i].switch++;}}else inputs[player][name]++;button.classList.add('pressed');});
+  const release=event=>{const player=pointers.get(event.pointerId);if(player===undefined)return;pointers.delete(event.pointerId);if(['left','right','rewind'].includes(name)&&![...pointers.values()].includes(player))touch[player][name]=false;if(name==='switch'&&!pointers.size)for(const i of mode==='local'?[0,1]:[player])touch[i].switchHeld=false;if(!pointers.size)button.classList.remove('pressed');};on(button,'pointerup',release);on(button,'pointercancel',release);on(button,'lostpointercapture',release);
  }
+ const fullscreenChange=()=>{const active=!!(document.fullscreenElement||document.webkitFullscreenElement);$('fullscreen-button').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen-button').setAttribute('aria-pressed',String(active));};on(document,'fullscreenchange',fullscreenChange);on(document,'webkitfullscreenchange',fullscreenChange);
  const invite=new URLSearchParams(location.hash.slice(1));if(invite.has('room')){$('room-code').value=invite.get('room');$('online-dialog').hidden=false;}
  $('loading').hidden=true;raf=requestAnimationFrame(animate);
  window.goatesque={engine,renderer,inputs,ui,native,assets,audio,get transition(){return transition;},get mode(){return mode;},get room(){return room;},loadLevel,playLocal,startLevel,action,enterRoom,confirmCompletion,requestMap,destroy(){cancelAnimationFrame(raf);connection?.stop();audio.destroy();cleanup.forEach(fn=>fn());clearTimeout(toastTimer);}};

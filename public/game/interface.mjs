@@ -15,6 +15,7 @@ export class NativeInterface {
    for(const option of this.layout.input.options)this.sprite(option.sprite,option.frame,option.x,option.y);
    const option=this.layout.input.options[state.inputSelection];this.drawSelector(option.x,option.y,2.2,dt);
   }else if(screen==='map')this.map(state,dt);
+  if(state.rewinding)this.text('Rewinding',960,70,32,.85);
   if(state.overlay==='controls')this.controls(state.inputMode);
   if(state.overlay==='credits')this.credits();
   if(transition){this.drawTransition(transition,state);}

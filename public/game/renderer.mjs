@@ -1,6 +1,7 @@
 import {edgeType} from './terrain.mjs';
 const noise=(x,y)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n);};
 const randomGenerator=seed=>()=>{seed=(Math.imul(1664525,seed)+1013904223)>>>0;return seed/4294967296;};
+export const splitViewports=engine=>engine.cameras.map((camera,view)=>({camera,view,left:view*960,width:960,height:1080}));
 
 export class Renderer {
  constructor(canvas,assets){
@@ -53,31 +54,33 @@ export class Renderer {
   if(cv.width!==Math.round(width*dpr)||cv.height!==Math.round(height*dpr)){cv.width=Math.round(width*dpr);cv.height=Math.round(height*dpr);}
   c.setTransform(cv.width/1920,0,0,cv.height/1080,0,0);c.imageSmoothingEnabled=true;c.fillStyle='#161b1a';c.fillRect(0,0,1920,1080);
   this.currentTheme=this.theme(engine.level.tileset);this.prepare(engine);
-  const shared=!!engine.sharedCamera;
-  for(let view=0;view<(shared?1:2);view++){
-   const camera=shared?engine.sharedCamera:engine.cameras[view],width=shared?1920:960,left=shared?0:view*960;c.save();c.beginPath();c.rect(left,0,width,1080);c.clip();
-   c.translate(left,0);c.scale(width/camera.w,1080/camera.h);c.translate(-camera.x,-camera.y);
+  this.lastViewports=splitViewports(engine);
+  for(const {camera,view,left,width} of this.lastViewports){
+   c.save();c.beginPath();c.rect(left,0,width,1080);c.clip();
+   const brokenAt=engine.breaks?.at(-1)?.tick,shake=brokenAt!==undefined&&engine.tick-brokenAt<10&&!this.reduced?Math.sin(engine.tick*3)*3:0;c.translate(left+shake,shake*.5);c.scale(width/camera.w,1080/camera.h);c.translate(-camera.x,-camera.y);
    this.background(camera);
    for(let i=0;i<engine.level.gates.length;i++)this.gate(engine,engine.level.gates[i],i,view);
    for(const item of this.decor)if(item.depth>5)this.drawDecor(item,camera,engine.tick);
    if(engine.ending){const half=this.assets.renderMap.ending[view===0?'leftHalf':'rightHalf'],shake=(engine.ending.shake?.[view]||0)*Math.sin(engine.tick*2)*.15;this.sprite(half.spriteName,engine.ending.frames[view],half.x+shake,half.y,2,2);}
    this.terrain(engine,camera,view);
+    this.breakingFloor(engine);
    for(const item of this.decor)if(item.depth<=5)this.drawDecor(item,camera,engine.tick);
    for(const block of engine.blocks){this.sprite('sprBlock',0,block.x,block.y,block.w/320,block.h/320);if(block.vx){c.save();c.globalCompositeOperation='lighter';this.sprite('sprBlockGlow',2,block.x,block.y,Math.sign(block.vx)*block.w/320,block.h/320,0,.8);c.restore();}}
    const order=[0,1].sort((a,b)=>engine.players[a].y-engine.players[b].y);
    for(const i of order){const p=engine.players[i];if(p.gate>=0)continue;
-    this.player(p,i,!shared&&p.view!==view);
-    if(!shared&&engine.cameras.every(c=>c.locked)&&p.view!==view){const from=engine.cameras[p.view],to=camera,ratio=to.h/from.h;const x=p.view===0?to.x+(p.x-from.x-from.w)*ratio:to.x+to.w+(p.x-from.x)*ratio;const y=to.y+(p.y-from.y)*ratio;this.player({...p,x,y,scale:p.scale*ratio},i,false);}
-    if(shared||p.view===view)this.tutorial(engine,p,i);
+    this.player(p,i,p.view!==view);
+    if(engine.cameras.every(c=>c.locked)&&p.view!==view){const from=engine.cameras[p.view],to=camera,ratio=to.h/from.h;const x=p.view===0?to.x+(p.x-from.x-from.w)*ratio:to.x+to.w+(p.x-from.x)*ratio;const y=to.y+(p.y-from.y)*ratio;this.player({...p,x,y,scale:p.scale*ratio},i,false);}
+    if(p.view===view)this.tutorial(engine,p,i);
    }
    // Original fog and torch light bitmaps soften the room without tinting the art.
    c.save();c.globalCompositeOperation='screen';this.sprite('sprFog',0,camera.x-100+Math.sin(this.time*.04)*70,camera.y-100,Math.max(camera.w,camera.h)/500,Math.max(camera.w,camera.h)/500,0,.035);c.restore();
    c.restore();
-   if(!shared&&camera.locked)this.sprite('sprLockFrame3',0,view*960,0,1,1,0,.7);
+   if(camera.locked)this.sprite('sprLockFrame3',0,view*960,0,1,1,0,.7);
   }
   const joined=engine.cameras.every(c=>c.locked);
-  if(!shared){c.save();if(!joined)c.filter='brightness(0)';this.sprite('sprLockCrack',joined?1:0,954,0,1,1);c.restore();}
+  c.save();if(!joined)c.filter='brightness(0)';this.sprite('sprLockCrack',joined?1:0,954,0,1,1);c.restore();
   if(engine.ending?.alpha){c.save();c.fillStyle='#fff';c.globalAlpha=engine.ending.alpha;c.fillRect(0,0,1920,1080);c.restore();}
+  if(engine.rewinding){c.save();c.fillStyle='#74bdcc';c.globalAlpha=.07;c.fillRect(0,0,1920,1080);c.restore();}
  }
  background(camera){
   const c=this.ctx;c.save();c.translate(camera.x*.2,camera.y*.2);c.fillStyle=this.currentTheme.backgroundPattern;c.fillRect(camera.x*.8-200,camera.y*.8-200,camera.w+400,camera.h+400);c.restore();
@@ -117,11 +120,21 @@ export class Renderer {
  gate(engine,gate,index,view){
   const c=this.ctx,camera=engine.cameras[view],players=engine.players.filter(p=>p.gate===index),closed=players.length>=gate.capacity||(players.length>0&&gate.capacity===2&&players.some(p=>p.view===view));
   const name=this.currentTheme.map[gate.capacity===2?'gateBig':'gate'].name;
-  const key=index+':'+view,previous=this.gateFrames.get(key)||{tick:engine.tick,frame:0};
-  previous.frame=Math.max(0,Math.min(4,previous.frame+(closed?1:-1)*Math.max(0,engine.tick-previous.tick)));previous.tick=engine.tick;this.gateFrames.set(key,previous);
+  const previous={frame:engine.gateFrames[index]?.[view]||0};
   const x=camera.x+camera.w/2+(gate.x-camera.x-camera.w/2)*.96,sx=gate.scaleX??1;
   this.sprite(name,previous.frame,x,gate.y,sx,1);
   if(closed&&previous.frame>=4)for(const p of players){const id=1-engine.players.indexOf(p),offset=gate.capacity===2?40-80*id:5*sx;this.sprite('sprGateHeads',id,x+offset,gate.y-(gate.capacity===2?80:75),sx,1);}
+  if(closed&&previous.frame>0&&previous.frame<4)for(let i=0;i<8;i++){const r=noise(index*31+i,engine.tick),age=previous.frame;this.sprite('sprParticleDust',0,x+(r-.5)*80,gate.y-45-r*70-age*3,.5+age*.12,.5+age*.12,0,.18);}
+ }
+ breakingFloor(engine){
+  for(const event of engine.breaks||[]){const age=engine.tick-event.tick;if(age<0||age>100)continue;const alpha=Math.min(1,(100-age)/25);
+   for(const cell of event.cells){const x=cell%engine.level.width,y=Math.floor(cell/engine.level.width),r=noise(cell,19),fall=Math.min(15*age,.4*(.6+r*.6)*age*age),dx=(r-.5)*age*.7;
+    this.sprite('sprWallBase',Math.floor(noise(x+7,y+9)*18),x*64+32+dx,y*64+32+fall,1,1,(r-.5)*age*3,alpha);
+    this.sprite('sprWallLinesFloorWorn',1+Math.floor(r*(this.assets.sprites.sprWallLinesFloorWorn.frames.length-1)),x*64+32+dx,y*64+32+fall,1,1,(r-.5)*age*3,alpha);
+    for(let n=0;n<5;n++){const q=noise(cell,n+71),life=25+q*45;if(age>life)continue;const spread=(q-.5)*age*2;this.sprite('sprParticle',0,x*64+32+spread,y*64+36+Math.min(15*age,.2*age*age+q*age),.1+q*.25,.1+q*.25,q*360+age,.6*(1-age/life));}
+    if(age<55)this.sprite('sprParticleDust',0,x*64+32+(r-.5)*age,y*64+35+age*.6,1+age*.04,1+age*.04,0,.13*(1-age/55));
+   }
+  }
  }
  player(p,index,ghost){
   const c=this.ctx,frame=this.playerFrames[index];c.save();if(ghost)c.globalAlpha*=.5;

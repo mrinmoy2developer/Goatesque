@@ -16,7 +16,7 @@ export class Engine {
     this.level = this.levels[this.index]; this.tick = 0; this.won = false; this.winTime = 0;
     this.players = this.level.spawns.map((s, i) => ({ x:s.x, y:s.y, vx:0, vy:0, view:i, owner:i, face:i ? -1:1, ground:false, coyote:0, buffer:0, gate:-1, lastJump:0, lastLock:0, lastRestart:0,lastSwitch:0,canLock:this.level.lockEnabled!==false,scale:1 }));
     this.cameras = this.players.map((p, i) => ({ x:p.x-this.level.views[i].w*.5, y:p.y-this.level.views[i].h*20/33, w:this.level.views[i].w, h:this.level.views[i].h, locked:false }));
-    this.blocks = this.level.blocks.map(b=>({ ...b, vx:0, vy:0 })); this.broken=[]; this.history=[];this.rewindRate=2;this.rewinding=false;
+    this.blocks = this.level.blocks.map(b=>({ ...b, vx:0, vy:0 })); this.broken=[];this.breaks=[];this.gateFrames=this.level.gates.map(()=>[0,0]);this.exitDelay=0; this.history=[];this.rewindRate=2;this.rewinding=false;
     this.sharedCamera=this.level.shared?{x:0,y:0,w:1536,h:864}:null;
     this.ending=this.level.ending?{matched:false,frames:[3,3],shake:[0,0],alpha:0}:null;
     this.breakGroups=[];const seen=new Set();for(let y=0;y<this.level.height;y++)for(let x=0;x<this.level.width;x++){const key=y*this.level.width+x;if(this.level.grid[y][x]!==7||seen.has(key))continue;const group=[],queue=[[x,y]];while(queue.length){const [xx,yy]=queue.pop(),k=yy*this.level.width+xx;if(seen.has(k)||this.level.grid[yy]?.[xx]!==7)continue;seen.add(k);group.push(k);queue.push([xx+1,yy],[xx-1,yy],[xx,yy+1],[xx,yy-1]);}this.breakGroups.push(group);}
@@ -102,7 +102,7 @@ export class Engine {
     const onOther=support.gate<0&&Math.abs(p.x-support.x)<26*(p.scale+support.scale)&&Math.abs(p.y+47*p.scale-support.y+47*support.scale)<1.1;
     p.ground=this.collides(this.box(p,p.x,p.y+1),p.view)||onOther;
     p.coyote=p.ground?6:Math.max(0,p.coyote-1);
-    p.vy=Math.min(20*p.scale,p.vy+.8*p.scale);
+    p.vy=Math.min((this.level.fallExit&&this.breaks.length?15:20)*p.scale,p.vy+.8*p.scale);
     const rider=this.players[1-index];const carrying=rider.gate<0&&Math.abs(rider.x-p.x)<26*(rider.scale+p.scale)&&Math.abs(rider.y+47*rider.scale-p.y+47*p.scale)<4;
     if(p.buffer>0&&p.coyote>0&&!carrying){p.vy=-18*p.scale;p.coyote=0;p.buffer=0;p.ground=false;this.events.push({type:"jump",player:index});}
     const oldX=p.x;
@@ -147,7 +147,7 @@ export class Engine {
   }
   step(inputs=[emptyInput(),emptyInput()]) {
     if(inputs.some((input,i)=>(input?.restart||0)>this.players[i].lastRestart)){this.load(this.index);this.players.forEach((p,i)=>Object.assign(p,{lastJump:inputs[i]?.jump||0,lastLock:inputs[i]?.lock||0,lastRestart:inputs[i]?.restart||0,lastGate:inputs[i]?.gate||0,lastSwitch:inputs[i]?.switch||0}));return;}
-    if(this.level.rewindEnabled!==false&&inputs.some(input=>input?.rewind)&&this.history.length>1){this.rewindRate+=.01;this.rewindFrames(Math.floor(this.rewindRate));return;}
+    if(this.level.rewindEnabled!==false&&inputs.some(input=>input?.rewind)){this.rewindRate+=.01;if(this.history.length>1)this.rewindFrames(Math.floor(this.rewindRate));this.rewinding=true;return;}
     this.rewinding=false;this.rewindRate=Math.max(2,this.rewindRate-.1);
     if(this.won){this.winTime++;return;}
     this.tick++;
@@ -161,11 +161,14 @@ export class Engine {
       for(let n=0;n<steps;n++){const dx=b.vx/steps;if(this.collides({x:b.x+dx-b.w/2,y:b.y-b.h/2,w:b.w,h:b.h},0,i)){b.vx=0;break;}b.x+=dx;}
     }
     for(let i=0;i<2;i++)this.movePlayer(this.players[i],inputs[i]||emptyInput(),i);
-    for(const group of this.breakGroups){if(this.broken.includes(group[0]))continue;const on=this.players.map(p=>{const y=Math.floor((p.y+47*p.scale+2)/64);return p.ground&&group.some(k=>Math.floor(k/this.level.width)===y&&Math.abs((k%this.level.width)*64+32-p.x)<32+28*p.scale);});const stacked=this.players.some((p,i)=>on[i]&&Math.abs(p.x-this.players[1-i].x)<50&&Math.abs((p.y-47*p.scale)-(this.players[1-i].y+47*this.players[1-i].scale))<4);if(on.every(Boolean)||stacked){this.broken.push(...group);this.events.push({type:"break"});}}
+    for(const group of this.breakGroups){if(this.broken.includes(group[0]))continue;const on=this.players.map(p=>{const y=Math.floor((p.y+47*p.scale+2)/64);return p.ground&&group.some(k=>Math.floor(k/this.level.width)===y&&Math.abs((k%this.level.width)*64+32-p.x)<32+28*p.scale);});const stacked=this.players.some((p,i)=>on[i]&&Math.abs(p.x-this.players[1-i].x)<50&&Math.abs((p.y-47*p.scale)-(this.players[1-i].y+47*this.players[1-i].scale))<4);if(on.every(Boolean)||stacked){this.broken.push(...group);this.breaks.push({tick:this.tick,cells:[...group]});this.events.push({type:"break"});}}
     for(let i=0;i<2;i++)if(!this.cameras[i].locked&&this.players[i].gate<0)this.centerCamera(i);
     if(this.sharedCamera)this.updateSharedCamera();
     if(this.ending){this.updateEnding();}
-    if(this.players.every(p=>p.gate>=0)){this.won=true;this.events.push({type:"win",index:this.index});}
+    for(let g=0;g<this.level.gates.length;g++)for(let view=0;view<2;view++){const occupants=this.players.filter(p=>p.gate===g),capacity=this.level.gates[g].capacity,closed=occupants.length>=capacity||capacity===2&&occupants.some(p=>p.view===view);this.gateFrames[g][view]=clamp(this.gateFrames[g][view]+(closed?1:-1),0,4);}
+    const occupied=this.players.every(p=>p.gate>=0),closed=occupied&&this.players.every(p=>this.level.fallExit||this.gateFrames[p.gate]?.[p.view]===4);
+    this.exitDelay=closed?this.exitDelay+1:0;
+    if(closed&&(this.level.fallExit||this.exitDelay>=12)){this.won=true;this.events.push({type:"win",index:this.index});}
     const key=this.motionKey();if(key!==this.historyKey){this.history.push(this.snapshot());if(this.history.length>1800)this.history.shift();this.historyKey=key;}
   }
   updateSharedCamera(immediate=false){
@@ -181,9 +184,9 @@ export class Engine {
     this.ending.shake=this.ending.shake.map(n=>Math.max(0,n-1));
     if(this.ending.frames.every(n=>n===0)){this.ending.alpha+=(1-this.ending.alpha)*.01;if(this.ending.alpha>.946&&!this.won){this.won=true;this.events.push({type:'ending-complete'});}}
   }
-  motionKey(){return JSON.stringify([this.players.map(p=>[p.x,p.y,p.view,p.owner,p.scale,p.gate,p.lastLock]),this.cameras.map(c=>[c.x,c.y,c.locked]),this.blocks.map(b=>[b.x,b.y]),this.broken,this.ending]);}
+  motionKey(){return JSON.stringify([this.players.map(p=>[p.x,p.y,p.view,p.owner,p.scale,p.gate,p.lastLock]),this.cameras.map(c=>[c.x,c.y,c.locked]),this.blocks.map(b=>[b.x,b.y]),this.broken,this.breaks.map(b=>Math.min(100,this.tick-b.tick)),this.gateFrames,this.exitDelay,this.ending]);}
   rewindFrames(count=2){const actions=this.players.map(p=>({lastJump:p.lastJump,lastLock:p.lastLock,lastGate:p.lastGate,lastSwitch:p.lastSwitch,lastRestart:p.lastRestart}));let state;for(let i=0;i<count&&this.history.length>1;i++){this.history.pop();state=this.history[this.history.length-1];}if(state){this.restore(state);this.players.forEach((p,i)=>Object.assign(p,actions[i]));this.rewinding=true;this.historyKey=this.motionKey();}}
   rewind() {this.rewindFrames(180);}
-  snapshot(){return {index:this.index,tick:this.tick,serial:this.serial,won:this.won,winTime:this.winTime,rewinding:this.rewinding,sharedCamera:this.sharedCamera?{...this.sharedCamera}:null,ending:this.ending?{...this.ending,frames:[...this.ending.frames],shake:[...this.ending.shake]}:null,players:this.players.map(p=>({...p})),cameras:this.cameras.map(c=>({...c})),blocks:this.blocks.map(b=>({...b})),broken:[...this.broken]};}
-  restore(s){if(!s||!Array.isArray(s.players)||s.players.length!==2)return;if(s.index!==this.index)this.load(s.index);this.index=s.index;this.level=this.levels[this.index];this.tick=s.tick;this.serial=s.serial;this.won=s.won;this.winTime=s.winTime||0;this.rewinding=!!s.rewinding;this.sharedCamera=s.sharedCamera?{...s.sharedCamera}:null;this.ending=s.ending?{...s.ending,frames:[...s.ending.frames],shake:[...(s.ending.shake||[0,0])]}:null;this.players=s.players.map(p=>({...p}));this.cameras=s.cameras.map(c=>({...c}));this.blocks=s.blocks.map(b=>({...b}));this.broken=[...s.broken];}
+  snapshot(){return {index:this.index,tick:this.tick,serial:this.serial,won:this.won,winTime:this.winTime,rewinding:this.rewinding,sharedCamera:this.sharedCamera?{...this.sharedCamera}:null,ending:this.ending?{...this.ending,frames:[...this.ending.frames],shake:[...this.ending.shake]}:null,players:this.players.map(p=>({...p})),cameras:this.cameras.map(c=>({...c})),blocks:this.blocks.map(b=>({...b})),broken:[...this.broken],breaks:this.breaks.map(b=>({...b,cells:[...b.cells]})),gateFrames:this.gateFrames.map(f=>[...f]),exitDelay:this.exitDelay};}
+  restore(s){if(!s||!Array.isArray(s.players)||s.players.length!==2)return;if(s.index!==this.index)this.load(s.index);this.index=s.index;this.level=this.levels[this.index];this.tick=s.tick;this.serial=s.serial;this.won=s.won;this.winTime=s.winTime||0;this.rewinding=!!s.rewinding;this.sharedCamera=s.sharedCamera?{...s.sharedCamera}:null;this.ending=s.ending?{...s.ending,frames:[...s.ending.frames],shake:[...(s.ending.shake||[0,0])]}:null;this.players=s.players.map(p=>({...p}));this.cameras=s.cameras.map(c=>({...c}));this.blocks=s.blocks.map(b=>({...b}));this.broken=[...s.broken];this.breaks=(s.breaks||[]).map(b=>({...b,cells:[...b.cells]}));this.gateFrames=(s.gateFrames||this.level.gates.map(()=>[0,0])).map(f=>[...f]);this.exitDelay=s.exitDelay||0;}
 }

@@ -38,8 +38,10 @@ Apply that migration once per local database. Hosted migrations are applied duri
 - Player 1: A/D move, W jump, S lock camera, F enter/leave a door.
 - Player 2: arrows move/jump/lock, Enter enters/leaves a door.
 - Hold Q (white) or Shift (red) to rewind both characters. Hold E and Ctrl together to exchange screens when both players are grounded. These abilities unlock at their original campaign points.
+- Both panes are visible on both devices in every room, including the introductions. Collapsing floors animate falling stone and dust; exits finish closing before the completion transition. These animation states restore when rewinding.
 - Space swaps the two keyboard movement/action sets in local play; F and Enter remain the respective doorway controls. Escape returns to the level map with the original stone-head transition.
 - Arrows navigate menus; Space/Enter confirms. New saves begin with the original four input choices. Standard browser gamepads support shared controller, two controllers, or controller plus keyboard. Touch controls include a character selector.
+- The Touch toggle enables thumb controls for movement, jump, lock, doorway, held rewind and screen exchange. Online controls always operate your own character; local play has a White/Red selector. Local touch screen exchange operates both switch controls together. The full-screen button is always available. Browsers without element fullscreen can launch the game from a Home Screen shortcut; portrait and landscape layouts respect safe areas.
 - Completion closes the stone heads and waits for Space/Enter/Up, then returns to the map. R restarts while this completion screen is waiting. The first introduction advances automatically to the second.
 - Online: choose Online co-op → Create a room → copy invite. Your friend opens the link and joins. Either movement key set controls your own character. Host remains the simulation authority and chooses levels; menus and transitions synchronize between browsers. Either player can confirm completion or return to the map.
 
