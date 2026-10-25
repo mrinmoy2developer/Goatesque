@@ -1,13 +1,14 @@
 import {Engine,emptyInput} from './engine.mjs';
 import {Renderer} from './renderer.mjs';
+import {loadAssets} from './assets.mjs';
 import {RoomConnection,roomRequest} from './network.mjs';
 
 const $=id=>document.getElementById(id);
 export async function boot(){
   const generation=(window.dyoBoot||0)+1;window.dyoBoot=generation;window.dyo?.destroy?.();
-  const levels=await fetch('/game/levels.json').then(r=>{if(!r.ok)throw new Error('Level download failed. Reload to try again.');return r.json();});
+  const [levels,assets]=await Promise.all([fetch('/game/levels.json').then(r=>{if(!r.ok)throw new Error('Level download failed. Reload to try again.');return r.json();}),loadAssets((loaded,total)=>{$('loading').textContent=`Loading original DYO artwork… ${Math.round(loaded/total*100)}%`;})]);
   if(window.dyoBoot!==generation)return;
-  const engine=new Engine(levels),renderer=new Renderer($('world'));
+  const engine=new Engine(levels),renderer=new Renderer($('world'),assets);
   let started=false,paused=false,mode='local',room=null,roomConnection=null,active=0,raf=0,last=0,accumulator=0,frame=0,hostInput=emptyInput(),remoteInput=emptyInput(),history=[],peerOnline=false,sound=false,audio=null,toastTimer=null,serial=engine.serial,remotePaused=false;
   const remoteMotion={left:0,right:0};
   const inputs=[emptyInput(),emptyInput()];
@@ -25,7 +26,7 @@ export async function boot(){
     $('hint-text').textContent=help;
     $('level-grid').innerHTML=levels.map((l,i)=>`<button data-level="${i}" class="level-cell ${i===engine.index?'current':''} ${completed.includes(i)?'complete':''}" ${mode==='guest'?'disabled':''}><span>${String(i+1).padStart(2,'0')}</span><small>${l.name}</small>${completed.includes(i)?'<b>✓</b>':''}</button>`).join('');
   }
-  function playLocal(){roomConnection?.leave();roomConnection=null;room=null;mode='local';$('room-bar').hidden=true;$('menu').hidden=true;started=true;paused=false;resetInputs();$('world').focus();toast('Ember: WASD · Ivory: arrow keys. Press Space to lock both views.');}
+  function playLocal(){roomConnection?.leave();roomConnection=null;room=null;mode='local';$('room-bar').hidden=true;$('menu').hidden=true;started=true;paused=false;resetInputs();$('world').focus();toast('Player 1: WASD · Player 2: arrow keys. Press Space to lock both views.');}
   async function enterRoom(action){
     const button=$(action==='create'?'create-room':'join-room');button.disabled=true;$('room-error').textContent='';
     try {
@@ -45,8 +46,8 @@ export async function boot(){
         }
       },status=>{peerOnline=status.connected;$('connection-label').textContent=status.error||(status.connected?`Connected · ${status.latency} ms`:'Waiting for your friend');$('connection-dot').classList.toggle('connected',status.connected);});
       roomConnection.start(()=>mode==='host'?{state:{...engine.snapshot(),paused,hostInput:{...inputs[0]},guestSeq:remoteInput.seq||0}}:{input:{...inputs[1],seq:frame}});
-      $('menu').hidden=true;$('online-dialog').hidden=true;$('room-bar').hidden=false;$('room-display').textContent=session.code;$('your-player').textContent=mode==='host'?'You are Ember':'You are Ivory';started=true;paused=false;
-      $('mode-label').textContent='ONLINE CO-OP';$('world').focus();toast(mode==='host'?'Share the room link with your friend.':'Joined! Use WASD or the arrow keys to move Ivory.');
+      $('menu').hidden=true;$('online-dialog').hidden=true;$('room-bar').hidden=false;$('room-display').textContent=session.code;$('your-player').textContent=mode==='host'?'You are Player 1':'You are Player 2';started=true;paused=false;
+      $('mode-label').textContent='ONLINE CO-OP';$('world').focus();toast(mode==='host'?'Share the room link with your friend.':'Joined! Use WASD or the arrow keys to move Player 2.');
     }catch(error){$('room-error').textContent=error.message;}
     finally{button.disabled=false;}
   }
@@ -83,7 +84,7 @@ export async function boot(){
     if(event.code==='Space'){if(single)input.lock++;else{inputs[0].lock++;inputs[1].lock++;}}
     if(event.code==='KeyR'){if(mode==='guest')input.restart++;else loadLevel(engine.index);}
     if(['KeyQ','KeyB','ShiftLeft','ShiftRight'].includes(event.code)){if(mode==='guest')toast('Ask your host to rewind with Q.');else engine.rewind();}
-    if(event.code==='Tab'){active=1-active;toast(`WASD now controls ${active?'Ivory':'Ember'}.`);}
+    if(event.code==='Tab'){active=1-active;toast(`WASD now controls ${active?'Player 2':'Player 1'}.`);}
     if(event.code==='KeyE'||event.code==='ControlRight'){if(mode==='guest')toast('Ask your host to swap views with E.');else{const [a,b]=engine.cameras;engine.cameras=[b,a];engine.players.forEach(p=>{p.view=1-p.view;p.owner=1-p.owner;});}}
   }
   function animate(now){
@@ -126,7 +127,7 @@ export async function boot(){
       case 'fullscreen':if(document.fullscreenElement)document.exitFullscreen?.();else $('game-shell').requestFullscreen?.();break;
       case 'invite':{const url=new URL(location.href);url.hash=`room=${room.code}`;navigator.clipboard?.writeText(url.href).then(()=>toast('Invite link copied. Send it to your friend.')).catch(()=>toast(`Room code: ${room.code}`));break;}
       case 'leave':roomConnection?.leave();roomConnection=null;room=null;mode='local';$('room-bar').hidden=true;$('pause-dialog').hidden=true;$('menu').hidden=false;started=false;paused=false;$('mode-label').textContent='LOCAL CO-OP';break;
-      case 'select-player':active=1-active;$('touch-player').textContent=active?'Ivory':'Ember';break;
+      case 'select-player':active=1-active;$('touch-player').textContent=active?'Player 2':'Player 1';break;
     }
   });
   for(const button of document.querySelectorAll('[data-touch]')){
